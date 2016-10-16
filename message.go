@@ -101,6 +101,7 @@ func NewMessage(msgBytes []byte) (Message, error) {
 	case CANCEL:
 		msg.Length = 13
 		msg.Payload = NewPayload(msg.Mtype, msgBytes[5:])
+	case BITFIELD:
 	case PIECE:
 		msg.Length = len(msgBytes) - 4
 		msg.Payload = NewPayload(msg.Mtype, msgBytes[5:])
