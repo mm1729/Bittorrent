@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
-	"github.com/amy/Internet-Technology/bitTorrent/torrent"
+	"github.com/amy/Bittorrent/torrent"
 )
 
 //announceURL+"?info_hash="+infoHash+"&peer_id="+peerId+"&peer_ip="+
@@ -12,38 +13,21 @@ import (
 
 func main() {
 
-	torrentFile := os.Args[1]
-	//destination := os.Args[2]
-
-	// open torrent
-	/*f, err := os.Open(torrentFile)
-	if err != nil {
-		panic(err)
+	if len(os.Args) != 2 {
+		fmt.Println("Illegal USAGE!\n USAGE : ./Bittorrent <torrent_file>")
 	}
-	defer f.Close()
+	torrentFile := os.Args[1]
 
-	dec := bencode.NewDecoder(f)*/
+	torrent, err := torrent.NewTorrent(torrentFile)
+	if err != nil {
+		log.Fatal("Unable to decode the torrent file\n", err)
+	}
 
-	torrent, _ := torrent.NewTorrent(torrentFile)
-
-	/*if err := dec.Decode(&torrent); err != nil {
-		panic(err)
-	}*/
-
-	//fmt.Printf("ANNOUNCE: %v\n", torrent.Announce)
-	fmt.Printf("INFOHASH %v\n", torrent.InfoHash())
-
-	//fmt.Printf("DICT: %d", torrent.Info)
-
-	//temp := fmt.Sprintf("%x", torrent.Info)
-
-	//fmt.Println(temp)
-
-	//fmt.Printf("PIECES: %v\n", torrent.Info.Pieces)
-	/*fmt.Printf("PIECE LENGTH: %v\n", torrent.Info.PieceLength)
-	fmt.Printf("NAME: %v\n", torrent.Info.Name)
-	fmt.Printf("LENGTH: %v\n", torrent.Info.Length)*/
-
-	//fmt.Printf("FILES: %v\n", torrent.Info.Files)
-
+	// create a new tracker and receive the list of peers
+	hash := torrent.InfoHash()
+	iDict := torrent.InfoDict()
+	tkInfo := NewTracker(hash, torrent, &iDict)
+	peerList := tkInfo.Connect()
+	fmt.Printf("%v\n", peerList)
+	tkInfo.Disconnect()
 }
