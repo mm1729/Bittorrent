@@ -41,6 +41,7 @@ func getURL(hash []byte, tInfo *torrent.Torrent, iDict *torrent.InfoDict) string
 	for i := 0; i < len(hexStr); i += 2 {
 		urlHash += "%" + string(hexStr[i]) + string(hexStr[i+1])
 	}
+
 	url := tInfo.Announce + "?info_hash=" + urlHash + "&peer_id=DONDESTALABIBLIOTECA&port=6881&uploaded=0&downloaded=0&left=" + strconv.Itoa(iDict.Length)
 
 	return url
@@ -66,6 +67,7 @@ func (trkInfo TrackerInfo) sendGetRequest(event string) []byte {
 	if err != nil {
 		log.Fatal("Internal error reading the response from tracker", err)
 	}
+
 	return body
 }
 
