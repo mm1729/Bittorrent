@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/amy/Bittorrent/torrent"
 	"github.com/zeebo/bencode"
 )
 
@@ -34,7 +33,7 @@ type Peer struct {
 	Port   int64  `bencode:"port"`
 }
 
-func getURL(hash []byte, tInfo *torrent.Torrent, iDict *torrent.InfoDict) string {
+func getURL(hash []byte, tInfo *Torrent, iDict *InfoDict) string {
 	hexStr := []rune(hex.EncodeToString(hash))
 	urlHash := ""
 
@@ -48,20 +47,20 @@ func getURL(hash []byte, tInfo *torrent.Torrent, iDict *torrent.InfoDict) string
 }
 
 //NewTracker initializes a new tracker and takes a byte array of the info hash
-func NewTracker(hash []byte, tInfo *torrent.Torrent, iDict *torrent.InfoDict) (trkInfo TrackerInfo) {
+func NewTracker(hash []byte, tInfo *Torrent, iDict *InfoDict) (trkInfo TrackerInfo) {
 	trkInfo.URL = getURL(hash, tInfo, iDict)
 	return
 }
 
 func (trkInfo TrackerInfo) sendGetRequest(event string) []byte {
-	fmt.Printf("Sending GET Request to : %s\n", trkInfo.URL+"&event="+event)
+	fmt.Printf("\nSending GET Request to : %s\n", trkInfo.URL+"&event="+event)
 	resp, err := http.Get(trkInfo.URL)
 	defer resp.Body.Close()
 	if err != nil {
 		log.Fatal("Unable to contact Tracker", err)
 	}
 
-	fmt.Printf("Response received from Tracker with status code: %d\n", resp.StatusCode)
+	fmt.Printf("\nResponse received from Tracker with status code: %d\n", resp.StatusCode)
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
