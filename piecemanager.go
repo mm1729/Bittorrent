@@ -133,7 +133,6 @@ func (t *PieceManager) computeQueue() bool {
 		return false
 	}
 	return true
-
 }
 
 /*
