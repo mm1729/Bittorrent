@@ -27,6 +27,8 @@ func main() {
 	// create a new tracker and receive the list of peers
 	hash := torrent.InfoHash()
 	iDict := torrent.InfoDict()
+
+	// Tracker connection 
 	tkInfo := NewTracker(hash, torrent, &iDict)
 	peerList := tkInfo.Connect()
 	fmt.Printf("%v\n", peerList)
@@ -37,7 +39,8 @@ func main() {
 		ClientID:     ClientID,
 		ProtoName:    ProtoName,
 		ProtoNameLen: len(ProtoName),
-		InfoHash:     string(hash[:len(hash)])}
+		InfoHash:     string(hash[:len(hash)]),
+	}
 
 	PeerDownloader := NewPeerDownloader(tInfo, peerList)
 	PeerDownloader.StartDownload()

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 )
 
 // MsgType const enum for Message Type
@@ -118,10 +119,12 @@ func getType(msgBytes []byte) MsgType {
 		return KEEPALIVE
 	}
 
-	var msgType int
+	var msgType int32
 	binary.Read(bytes.NewReader(msgBytes[4:5]), binary.BigEndian, &msgType)
 
-	return MsgType(msgType)
+	fmt.Println("MSGBYTES")
+	fmt.Println(msgBytes[4:5])
+	return MsgType(int(msgType) + 1)
 
 }
 

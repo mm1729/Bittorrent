@@ -13,6 +13,7 @@ import (
 )
 
 //TorrentInfo used to consolidate space, not the same as InfoDict
+//Torrent info that peer downloader needs from the torrent file
 type TorrentInfo struct {
 	TInfo        *InfoDict //torrent info dict
 	ClientID     string    //peer id client chose
@@ -100,18 +101,25 @@ func (t *PeerDownloader) receiveHandshakeMsg(hsk []byte, peer Peer) error {
 // StartDownload method starts download
 func (t *PeerDownloader) StartDownload() error {
 
+	// for each peer
 	for _, peerEntry := range t.peerList {
+
+		// 1.) make TCP connection 
 		conn, err := net.Dial("tcp", peerEntry.IP+":"+strconv.FormatInt(peerEntry.Port, 10))
 		if err != nil {
 			return err
 		}
+
+		// 2.) get writer & reader to the connection
 		//create socket buffered writer
 		pWriter := bufio.NewWriter(conn)
 		//create socket buffered reader
 		pRead := bufio.NewReader(conn)
 
+		// 3.) forms handshake message (i.e. what we can send) Written in []byte
 		hskmsg := t.getHandshakeMsg()
 
+		// 4.) send handshake message
 		bytesWrite, err := pWriter.Write(hskmsg)
 		if err != nil {
 			return err
@@ -121,14 +129,39 @@ func (t *PeerDownloader) StartDownload() error {
 			return errors.New("StartDownload: could not write handshake to socket")
 		}
 
+		// 5.) gets handshake packet 
 		data, err := t.getHandshakePacket(pRead)
 		if err != nil {
 			log.Fatal(err)
+		// validates handshake from peer. Check to make sure its the correct peer w/ info we want
 		} else if err = t.receiveHandshakeMsg(data, peerEntry); err != nil {
 			log.Fatal(err)
 		}
 
-		fmt.Printf("%s", string(hskmsg))
+		// 6.) send bitfield to peer. Indicates what pieces I have
+		sendBits, err := t.sendBitField()
+		bytesWrite, err = pWriter.Write(sendBits)
+		if err != nil {
+			return err
+		} else if bytesWrite != len(sendBits) {
+			return errors.New("StartDownload: not all bytes could be written for handshake")
+		} else if err = pWriter.Flush(); err != nil {
+			return errors.New("StartDownload: could not write handshake to socket")
+		}
+
+		// 7.) receive bitfield from peer. Indicates what pieces peer has.
+		rawBitfield, err := t.getPacket(pRead)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		peerBitfield, err := t.receiveBitField(rawBitfield)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		fmt.Println(peerBitfield)
+
 	}
 
 	return nil
@@ -147,16 +180,23 @@ func (t *PeerDownloader) getHandshakePacket(pRead *bufio.Reader) ([]byte, error)
 	return data, err
 }
 
+// getPacket gets a TCP packet 
+// gets all TCP packets except handshake
 func (t *PeerDownloader) getPacket(pRead *bufio.Reader) ([]byte, error) {
 	// read 1 bytes to find out length
-	n, err := pRead.ReadByte()
-	if err != nil {
-		return nil, errors.New("Could not read packet length")
-	}
-	length := int(n)
 
-	data, err := t.readPacket(length, pRead)
-	data = append([]byte{n}, data...)
+	msgLength := make([]byte, 4)
+	_, err := pRead.Read(msgLength)
+
+	if err != nil {
+		return nil, err
+	}
+	var length int32
+	binary.Read(bytes.NewReader(msgLength), binary.BigEndian, &length)
+
+	data, err := t.readPacket(int(length), pRead)
+
+	data = append(msgLength, data...)
 	return data, err
 }
 
@@ -175,4 +215,37 @@ func (t *PeerDownloader) readPacket(length int, pRead *bufio.Reader) ([]byte, er
 		fmt.Println(totalRead)
 	}
 	return data, nil
+}
+
+// sendBitField is the bitfield I will send to peer
+// gets bitfield from piecemanager
+// returns bitfield message 
+func (t *PeerDownloader) sendBitField() ([]byte, error){
+	bitField := t.manager.GetBitField()
+
+	payload := Payload{}
+	payload.bitField = bitField
+
+	return CreateMessage(BITFIELD, payload)
+}
+
+// receiveBitField takes the message received
+// and extracts the bitfield from it
+func (t *PeerDownloader) receiveBitField(rawMsg []byte) ([]byte, error){
+	fmt.Println("RAWMESSAGE")
+	fmt.Println(rawMsg)
+
+	msg, err := NewMessage(rawMsg)
+	if err != nil {
+		log.Fatal("receiveBitField: receieved invalid raw message - ", err)
+	}
+
+	if msg.Mtype != BITFIELD {
+		fmt.Println("MESSAGE")
+		fmt.Println(msg)
+
+		return nil, errors.New("Did not receive bitfield message")
+	}
+
+	return msg.Payload.bitField, nil
 }
