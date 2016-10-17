@@ -7,8 +7,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/amy/Bittorrent/torrent"
-)
+	)
 
 type status int
 
@@ -23,15 +22,15 @@ const (
 
 //FileWriter is the struct containing information writing to a file
 type FileWriter struct {
-	Info     *torrent.InfoDict
+	Info     *InfoDict
 	DataFile *os.File
 	Status   status
 }
 
 //Create initializes a new File Writer write to a particular file based on info
 //in the Info dictionary
-func Create(tInfo *torrent.InfoDict) (f *FileWriter) {
-	f = new(FileWriter)
+func NewFileWriter(tInfo *InfoDict) ( FileWriter) {
+	var f FileWriter
 	f.Info = tInfo
 
 	file, err := os.Create(tInfo.Name)
@@ -44,7 +43,7 @@ func Create(tInfo *torrent.InfoDict) (f *FileWriter) {
 
 	f.DataFile = file // f is now the file where data is to be written
 	f.Status = CREATED
-	return
+	return f
 }
 
 //Write writes to the file specified in the FileWriter created before
