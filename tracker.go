@@ -46,7 +46,7 @@ func getURL(hash []byte, tInfo *Torrent, iDict *InfoDict) string {
 	return url
 }
 
-//NewTracker initializes a new tracker and takes a byte array of the info hash
+//NewTracker initializes a new tracker CONNECTION and takes a byte array of the info hash
 func NewTracker(hash []byte, tInfo *Torrent, iDict *InfoDict) (trkInfo TrackerInfo) {
 	trkInfo.URL = getURL(hash, tInfo, iDict)
 	return
