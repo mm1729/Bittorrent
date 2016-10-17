@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"log"
 	"os"
-
-	"github.com/amy/Bittorrent/torrent"
 )
 
-//announceURL+"?info_hash="+infoHash+"&peer_id="+peerId+"&peer_ip="+
-//peerIp+"&port="+port+"&download="+download+"&left="+left+"&event="+event+"&no_peer_id=1"+"&compact=1"
+//ClientID is the 20 byte id of our client
+var ClientID = "DONDESTALABIBLIOTECA"
+
+//ProtoName is the BitTorrent protocol we are using
+var ProtoName = "BitTorrent protocol"
 
 func main() {
 
@@ -18,7 +19,7 @@ func main() {
 	}
 	torrentFile := os.Args[1]
 
-	torrent, err := torrent.NewTorrent(torrentFile)
+	torrent, err := NewTorrent(torrentFile)
 	if err != nil {
 		log.Fatal("Unable to decode the torrent file\n", err)
 	}
@@ -29,5 +30,18 @@ func main() {
 	tkInfo := NewTracker(hash, torrent, &iDict)
 	peerList := tkInfo.Connect()
 	fmt.Printf("%v\n", peerList)
+
+	//Start peer download
+	tInfo := TorrentInfo{
+		TInfo:        &iDict,
+		ClientID:     ClientID,
+		ProtoName:    ProtoName,
+		ProtoNameLen: len(ProtoName),
+		InfoHash:     string(hash[:len(hash)])}
+
+	PeerDownloader := NewPeerDownloader(tInfo, peerList)
+	PeerDownloader.StartDownload()
+
+	// Send event stopped message to tracker
 	tkInfo.Disconnect()
 }

@@ -6,8 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
-
-	)
+)
 
 type status int
 
@@ -27,9 +26,9 @@ type FileWriter struct {
 	Status   status
 }
 
-//Create initializes a new File Writer write to a particular file based on info
+//NewFileWriter Create initializes a new File Writer write to a particular file based on info
 //in the Info dictionary
-func NewFileWriter(tInfo *InfoDict) ( FileWriter) {
+func NewFileWriter(tInfo *InfoDict) FileWriter {
 	var f FileWriter
 	f.Info = tInfo
 
