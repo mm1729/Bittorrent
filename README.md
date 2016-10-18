@@ -1,6 +1,6 @@
-Amy Chen
-Moulindra Muchumari
-Dylan Herman
+Amy Chen @amy
+Moulindra Muchumari @mm1729
+Dylan Herman @oneTimePad
 
 IMPLEMENTATION DETAILS
 
