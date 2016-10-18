@@ -167,7 +167,7 @@ func (t *PeerDownloader) StartDownload() error {
 
 		// 8. Send Interested message
 		message, err := CreateMessage(INTERESTED, Payload{})
-		fmt.Println(message)
+		//fmt.Println(message)
 
 		bytesWrite, err = pWriter.Write(message)
 		fmt.Println(bytesWrite)
@@ -180,11 +180,11 @@ func (t *PeerDownloader) StartDownload() error {
 		}
 
 		//9. Get an unchoke message
-		unchoke, err := t.getPacket(pRead)
+		_, err = t.getPacket(pRead)
 		if err != nil {
 			fmt.Println(err)
 		}
-		fmt.Println(unchoke)
+		//fmt.Println(unchoke)
 
 		for {
 			//10. Send a request package
@@ -193,7 +193,7 @@ func (t *PeerDownloader) StartDownload() error {
 			if reqPieceID == -1 {
 				break
 			}
-			reqMsg, err := t.getRequestMessage(reqPieceID)
+			reqMsg, err := t.getRequestMessage(int32(reqPieceID))
 			bytesWrite, err = pWriter.Write(reqMsg)
 			if err != nil {
 				return err
@@ -209,18 +209,18 @@ func (t *PeerDownloader) StartDownload() error {
 				fmt.Println(err)
 			}
 			pieceMsg, err := NewMessage(piece)
-
+		
 			// 12. Store the response
-			status := t.manager.ReceivePiece(reqPieceID, pieceMsg.Payload.block)
-			fmt.Println(status)
+			t.manager.ReceivePiece(reqPieceID, pieceMsg.Payload.block)
+			//fmt.Println(status)
 		}
 	}
 
 	return nil
 }
 
-func (t *PeerDownloader) getRequestMessage(pieceIndex int) ([]byte, error) {
-	reqPayload := Payload{pieceIndex: pieceIndex, begin: 0, length: t.info.TInfo.PieceLength}
+func (t *PeerDownloader) getRequestMessage(pieceIndex int32) ([]byte, error) {
+	reqPayload := Payload{pieceIndex: pieceIndex, begin: 0, length: int32(t.info.TInfo.PieceLength)}
 	return CreateMessage(REQUEST, reqPayload)
 }
 

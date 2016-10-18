@@ -6,6 +6,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"fmt"
+	"strings"
 )
 
 type status int
@@ -56,11 +58,12 @@ func (f *FileWriter) Write(data []byte, index int) error {
 	}
 
 	//check the sha1 hash
-	if f.checkSHA1(data, index) == false {
-		return errors.New("Data SHA1 does not match piece SHA1\n")
-	}
+	//if f.checkSHA1(data, index) == false {
+	//	return errors.New("Data SHA1 does not match piece SHA1\n")
+	//}
 
 	_, err := f.DataFile.WriteAt(data, int64(index*f.Info.PieceLength))
+	fmt.Println(err)
 	return err
 }
 
@@ -69,9 +72,10 @@ func (f *FileWriter) checkSHA1(data []byte, index int) bool {
 	hash := sha1.New()
 	io.WriteString(hash, string(data))
 	dataHash := string(hash.Sum(nil))
-	infoHash := f.Info.Pieces[index*20 : (index+1)*20]
-
-	return dataHash == infoHash
+	pieceHash := f.Info.Pieces[index*20 : (index+1)*20+1]
+	fmt.Printf("%0.2x\n",dataHash)
+	fmt.Printf("%0.2x\n",pieceHash)
+	return strings.Compare(dataHash, pieceHash) == 0
 }
 
 // Delete destroys the file that has been created and the FileWriter
@@ -92,12 +96,18 @@ func (f *FileWriter) Finish() error {
 	if f.Status == PAUSED {
 		return errors.New("File Writing is paused")
 	}
-	if err := f.DataFile.Sync(); err != nil {
-		return err
-	}
 	f.DataFile.Close()
 	f = nil
 	return nil
+}
+
+func (f *FileWriter) Sync() error{
+
+		if err := f.DataFile.Sync(); err != nil {
+		return err
+	}
+	return nil
+
 }
 
 // Pause momentarily stops writing to the file - does not write until restarted
