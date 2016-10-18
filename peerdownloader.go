@@ -214,7 +214,6 @@ func (t *PeerDownloader) StartDownload() error {
 			status := t.manager.ReceivePiece(reqPieceID, pieceMsg.Payload.block)
 			fmt.Println(status)
 		}
-
 	}
 
 	return nil
@@ -251,6 +250,7 @@ func (t *PeerDownloader) getPacket(pRead *bufio.Reader) ([]byte, error) {
 
 	var length int32
 	binary.Read(bytes.NewReader(msgLength), binary.BigEndian, &length)
+
 	data, err := t.readPacket(int(length), pRead)
 
 	data = append(msgLength, data...)
@@ -293,6 +293,9 @@ func (t *PeerDownloader) receiveBitField(rawMsg []byte) ([]byte, error) {
 	}
 
 	if msg.Mtype != BITFIELD {
+		fmt.Println("MESSAGE")
+		fmt.Println(msg)
+
 		return nil, errors.New("Did not receive bitfield message")
 	}
 

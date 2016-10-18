@@ -119,9 +119,7 @@ func getType(msgBytes []byte) MsgType {
 	if len(msgBytes) <= 4 {
 		return KEEPALIVE
 	}
-
 	return MsgType(int(msgBytes[4]) + 1)
-
 }
 
 // CreateMessage creates and returns a Message based on the MsgType
