@@ -103,6 +103,7 @@ func NewMessage(msgBytes []byte) (Message, error) {
 		msg.Length = 13
 		msg.Payload = NewPayload(msg.Mtype, msgBytes[5:])
 	case BITFIELD:
+		fallthrough
 	case PIECE:
 		msg.Length = len(msgBytes) - 4
 		msg.Payload = NewPayload(msg.Mtype, msgBytes[5:])
@@ -118,14 +119,7 @@ func getType(msgBytes []byte) MsgType {
 	if len(msgBytes) <= 4 {
 		return KEEPALIVE
 	}
-
-	var msgType int32
-	binary.Read(bytes.NewReader(msgBytes[4:5]), binary.BigEndian, &msgType)
-
-	fmt.Println("MSGBYTES")
-	fmt.Println(msgBytes[4:5])
-	return MsgType(int(msgType) + 1)
-
+	return MsgType(int(msgBytes[4]) + 1)
 }
 
 // CreateMessage creates and returns a Message based on the MsgType
@@ -147,7 +141,7 @@ func CreateMessage(msgType MsgType, payLoad Payload) (arr []byte, err error) {
 		var id byte = 4
 		binary.Write(buf, binary.BigEndian, length)
 		binary.Write(buf, binary.BigEndian, id)
-		binary.Write(buf, binary.BigEndian, payLoad.pieceIndex)
+		binary.Write(buf, binary.BigEndian, intToByteArr(payLoad.pieceIndex))
 		arr = buf.Bytes()
 	case REQUEST:
 		fallthrough
@@ -160,19 +154,20 @@ func CreateMessage(msgType MsgType, payLoad Payload) (arr []byte, err error) {
 		}
 		binary.Write(buf, binary.BigEndian, length)
 		binary.Write(buf, binary.BigEndian, id)
-		binary.Write(buf, binary.BigEndian, payLoad.pieceIndex)
-		binary.Write(buf, binary.BigEndian, payLoad.begin)
-		binary.Write(buf, binary.BigEndian, payLoad.length)
+		binary.Write(buf, binary.BigEndian, intToByteArr(payLoad.pieceIndex))
+		binary.Write(buf, binary.BigEndian, intToByteArr(payLoad.begin))
+		binary.Write(buf, binary.BigEndian, intToByteArr(payLoad.length))
 		arr = buf.Bytes()
+		fmt.Println(arr)
 	case PIECE:
 		buf := new(bytes.Buffer)
 		var length = 9 + int32(len(payLoad.block))
 		var id byte = 7
 		binary.Write(buf, binary.BigEndian, length)
 		binary.Write(buf, binary.BigEndian, id)
-		binary.Write(buf, binary.BigEndian, payLoad.pieceIndex)
-		binary.Write(buf, binary.BigEndian, payLoad.begin)
-		binary.Write(buf, binary.BigEndian, payLoad.block)
+		binary.Write(buf, binary.BigEndian, intToByteArr(payLoad.pieceIndex))
+		binary.Write(buf, binary.BigEndian, intToByteArr(payLoad.begin))
+		binary.Write(buf, binary.BigEndian, intToByteArr(payLoad.length))
 		arr = buf.Bytes()
 	case BITFIELD:
 		buf := new(bytes.Buffer)
@@ -186,4 +181,10 @@ func CreateMessage(msgType MsgType, payLoad Payload) (arr []byte, err error) {
 		return nil, errors.New("NewMessage: Unknown message type")
 	}
 	return arr, nil
+}
+
+func intToByteArr(i int) []byte {
+	bs := make([]byte, 4)
+	binary.BigEndian.PutUint32(bs, uint32(i))
+	return bs
 }

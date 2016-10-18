@@ -1,8 +1,6 @@
 package main
 
-import (
-	"math"
-)
+import "math"
 
 /*
 PieceManager manages the pieces client needs to request
@@ -38,7 +36,7 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int) PieceManager {
 	//create the bitfield with max numBytes
 	p.bitField = make([]byte, int(numBytes))
 	//make the requestqueue with the given the users capacity
-	p.requestQueue = make([]int, requestQueueSize)
+	p.requestQueue = make([]int, 0, requestQueueSize)
 
 	return p
 }
@@ -80,7 +78,7 @@ ReceivedPiece writes a received piece and marks it off and writes it
 * @piece: the actual piece bytes
 * returns: status
 */
-func (t *PieceManager) ReceivedPiece(pieceIndex int, piece []byte) bool {
+func (t *PieceManager) ReceivePiece(pieceIndex int, piece []byte) bool {
 	var bitmask byte
 	nums := []uint{0, 1, 2, 3, 4, 5, 6, 7}
 	//for all bytes in the missing field
@@ -108,8 +106,8 @@ func (t *PieceManager) ReceivedPiece(pieceIndex int, piece []byte) bool {
  returns: whether there are any left to request
 */
 func (t *PieceManager) computeQueue() bool {
-	t.requestQueue = make([]int, t.queueSize)
-	nums := []uint{0, 1, 2, 3, 4, 5, 6, 7}
+	t.requestQueue = make([]int, 0, t.queueSize)
+	nums := [8]uint{0, 1, 2, 3, 4, 5, 6, 7}
 	var bitmask byte
 	//for all bytes in the missingField
 	for index, element := range t.missingField {
@@ -117,9 +115,11 @@ func (t *PieceManager) computeQueue() bool {
 		if element != 0 {
 			bitmask = 1
 			//for all bits in this element
+
 			for _, num := range nums {
 				//if it is marked as 1, and we have room
-				if element&(bitmask<<num) == 1 && cap(t.requestQueue) != len(t.requestQueue) {
+				if element&(bitmask<<num) != 0 && cap(t.requestQueue) != len(t.requestQueue) {
+
 					//append this index to the request queue
 					t.requestQueue = append(t.requestQueue, index*8+int(num))
 				} else if cap(t.requestQueue) == len(t.requestQueue) {

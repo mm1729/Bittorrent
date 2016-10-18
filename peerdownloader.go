@@ -104,7 +104,7 @@ func (t *PeerDownloader) StartDownload() error {
 	// for each peer
 	for _, peerEntry := range t.peerList {
 
-		// 1.) make TCP connection 
+		// 1.) make TCP connection
 		conn, err := net.Dial("tcp", peerEntry.IP+":"+strconv.FormatInt(peerEntry.Port, 10))
 		if err != nil {
 			return err
@@ -129,11 +129,11 @@ func (t *PeerDownloader) StartDownload() error {
 			return errors.New("StartDownload: could not write handshake to socket")
 		}
 
-		// 5.) gets handshake packet 
+		// 5.) gets handshake packet
 		data, err := t.getHandshakePacket(pRead)
 		if err != nil {
 			log.Fatal(err)
-		// validates handshake from peer. Check to make sure its the correct peer w/ info we want
+			// validates handshake from peer. Check to make sure its the correct peer w/ info we want
 		} else if err = t.receiveHandshakeMsg(data, peerEntry); err != nil {
 			log.Fatal(err)
 		}
@@ -160,11 +160,68 @@ func (t *PeerDownloader) StartDownload() error {
 			log.Fatal(err)
 		}
 
-		fmt.Println(peerBitfield)
+		if t.manager.CompareBitField(peerBitfield) == false {
+			// maybe send not interested
+			continue
+		}
 
+		// 8. Send Interested message
+		message, err := CreateMessage(INTERESTED, Payload{})
+		fmt.Println(message)
+
+		bytesWrite, err = pWriter.Write(message)
+		fmt.Println(bytesWrite)
+		if err != nil {
+			return err
+		} else if bytesWrite != len(message) {
+			return errors.New("StartDownload: not all bytes could be written for handshake")
+		} else if err = pWriter.Flush(); err != nil {
+			return errors.New("StartDownload: could not write handshake to socket")
+		}
+
+		//9. Get an unchoke message
+		unchoke, err := t.getPacket(pRead)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println(unchoke)
+
+		for {
+			//10. Send a request package
+			reqPieceID := t.manager.GetNextRequest()
+			fmt.Println(reqPieceID)
+			if reqPieceID == -1 {
+				break
+			}
+			reqMsg, err := t.getRequestMessage(reqPieceID)
+			bytesWrite, err = pWriter.Write(reqMsg)
+			if err != nil {
+				return err
+			} else if bytesWrite != len(reqMsg) {
+				return errors.New("StartDownload: not all bytes could be written for handshake")
+			} else if err = pWriter.Flush(); err != nil {
+				return errors.New("StartDownload: could not write handshake to socket")
+			}
+
+			// 11. Read the response
+			piece, err := t.getPacket(pRead)
+			if err != nil {
+				fmt.Println(err)
+			}
+			pieceMsg, err := NewMessage(piece)
+
+			// 12. Store the response
+			status := t.manager.ReceivePiece(reqPieceID, pieceMsg.Payload.block)
+			fmt.Println(status)
+		}
 	}
 
 	return nil
+}
+
+func (t *PeerDownloader) getRequestMessage(pieceIndex int) ([]byte, error) {
+	reqPayload := Payload{pieceIndex: pieceIndex, begin: 0, length: t.info.TInfo.PieceLength}
+	return CreateMessage(REQUEST, reqPayload)
 }
 
 func (t *PeerDownloader) getHandshakePacket(pRead *bufio.Reader) ([]byte, error) {
@@ -180,17 +237,17 @@ func (t *PeerDownloader) getHandshakePacket(pRead *bufio.Reader) ([]byte, error)
 	return data, err
 }
 
-// getPacket gets a TCP packet 
+// getPacket gets a TCP packet
 // gets all TCP packets except handshake
 func (t *PeerDownloader) getPacket(pRead *bufio.Reader) ([]byte, error) {
 	// read 1 bytes to find out length
 
 	msgLength := make([]byte, 4)
-	_, err := pRead.Read(msgLength)
+	msgLength[0], _ = pRead.ReadByte()
+	msgLength[1], _ = pRead.ReadByte()
+	msgLength[2], _ = pRead.ReadByte()
+	msgLength[3], _ = pRead.ReadByte()
 
-	if err != nil {
-		return nil, err
-	}
 	var length int32
 	binary.Read(bytes.NewReader(msgLength), binary.BigEndian, &length)
 
@@ -209,18 +266,16 @@ func (t *PeerDownloader) readPacket(length int, pRead *bufio.Reader) ([]byte, er
 		if err != nil {
 			return nil, errors.New("Could not read packet")
 		}
-		//fmt.Printf("%v\n", readData)
 		data = append(data[:totalRead], readData...)
 		totalRead += nRead
-		fmt.Println(totalRead)
 	}
 	return data, nil
 }
 
 // sendBitField is the bitfield I will send to peer
 // gets bitfield from piecemanager
-// returns bitfield message 
-func (t *PeerDownloader) sendBitField() ([]byte, error){
+// returns bitfield message
+func (t *PeerDownloader) sendBitField() ([]byte, error) {
 	bitField := t.manager.GetBitField()
 
 	payload := Payload{}
@@ -231,10 +286,7 @@ func (t *PeerDownloader) sendBitField() ([]byte, error){
 
 // receiveBitField takes the message received
 // and extracts the bitfield from it
-func (t *PeerDownloader) receiveBitField(rawMsg []byte) ([]byte, error){
-	fmt.Println("RAWMESSAGE")
-	fmt.Println(rawMsg)
-
+func (t *PeerDownloader) receiveBitField(rawMsg []byte) ([]byte, error) {
 	msg, err := NewMessage(rawMsg)
 	if err != nil {
 		log.Fatal("receiveBitField: receieved invalid raw message - ", err)
