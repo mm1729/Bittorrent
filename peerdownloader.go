@@ -27,6 +27,7 @@ type PeerDownloader struct {
 	info     TorrentInfo  //information about the torrent [see above]
 	peerList []Peer       //list of RU peer
 	manager  PieceManager //manages requests for pieces
+	
 }
 
 /*
@@ -37,12 +38,13 @@ NewPeerDownloader create a new peerdownloader
 * @protoName: protocol version name for this version of BT
 * returns: new PeerDownloader
 */
-func NewPeerDownloader(tInfo TorrentInfo, peers []Peer) PeerDownloader {
+func NewPeerDownloader(tInfo TorrentInfo, peers []Peer, fileName string) PeerDownloader {
 	var p PeerDownloader
 
 	p.info = tInfo
 	p.peerList = peers
-	p.manager = NewPieceManager(tInfo.TInfo, 10)
+	p.manager = NewPieceManager(tInfo.TInfo, 10,fileName)
+
 
 	return p
 }
@@ -170,7 +172,8 @@ func (t *PeerDownloader) StartDownload() error {
 		//fmt.Println(message)
 
 		bytesWrite, err = pWriter.Write(message)
-		fmt.Println(bytesWrite)
+		fmt.Println()
+		//fmt.Println("Request Msg: ",bytesWrite)
 		if err != nil {
 			return err
 		} else if bytesWrite != len(message) {
@@ -189,7 +192,7 @@ func (t *PeerDownloader) StartDownload() error {
 		for {
 			//10. Send a request package
 			reqPieceID := t.manager.GetNextRequest()
-			fmt.Println(reqPieceID)
+			fmt.Println("Requesting Piece: ",reqPieceID)
 			if reqPieceID == -1 {
 				break
 			}
@@ -206,9 +209,27 @@ func (t *PeerDownloader) StartDownload() error {
 			// 11. Read the response
 			piece, err := t.getPacket(pRead)
 			if err != nil {
-				fmt.Println(err)
+				return err
 			}
 			pieceMsg, err := NewMessage(piece)
+			if err != nil{
+				return err
+			}
+			if pieceMsg.Mtype == CHOKE{
+				for{
+					inMsg, err1 := t.getPacket(pRead)
+					if err1 != nil {
+						return err1
+					}
+					newMsg, err2  := NewMessage(inMsg)
+					if err2 != nil{
+						return err2
+					}
+					if newMsg.Mtype == UNCHOKE{
+						break
+					}
+				}
+			}
 		
 			// 12. Store the response
 			t.manager.ReceivePiece(reqPieceID, pieceMsg.Payload.block)

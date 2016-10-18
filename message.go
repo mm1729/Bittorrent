@@ -112,7 +112,7 @@ func NewMessage(msgBytes []byte) (Message, error) {
 	case BITFIELD:
 		fallthrough
 	case PIECE:
-		fmt.Println("HIT HIT HIT\n")
+		
 		msg.Length = len(msgBytes) - 4
 		msg.Payload = NewPayload(msg.Mtype, msgBytes[5:])
 	default:
@@ -166,7 +166,7 @@ func CreateMessage(msgType MsgType, payLoad Payload) (arr []byte, err error) {
 		binary.Write(buf, binary.BigEndian, intToByteArr(payLoad.begin))
 		binary.Write(buf, binary.BigEndian, intToByteArr(payLoad.length))
 		arr = buf.Bytes()
-		fmt.Println(arr)
+		fmt.Println("Piece Request:", arr)
 	case PIECE:
 		buf := new(bytes.Buffer)
 		var length = 9 + int32(len(payLoad.block))

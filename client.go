@@ -14,10 +14,12 @@ var ProtoName = "BitTorrent protocol"
 
 func main() {
 
-	if len(os.Args) != 2 {
-		fmt.Println("Illegal USAGE!\n USAGE : ./Bittorrent <torrent_file>")
+	if len(os.Args) < 3 {
+		fmt.Println("Illegal USAGE!\n USAGE : ./Bittorrent <torrent_file> <output file>")
+		return 
 	}
 	torrentFile := os.Args[1]
+	fileName := os.Args[2]
 
 	torrent, err := NewTorrent(torrentFile)
 	if err != nil {
@@ -42,7 +44,7 @@ func main() {
 		InfoHash:     string(hash[:len(hash)]),
 	}
 
-	PeerDownloader := NewPeerDownloader(tInfo, peerList)
+	PeerDownloader := NewPeerDownloader(tInfo, peerList,fileName)
 	PeerDownloader.StartDownload()
 
 	// Send event stopped message to tracker

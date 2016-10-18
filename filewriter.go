@@ -6,8 +6,9 @@ import (
 	"io"
 	"log"
 	"os"
-	"fmt"
-	"strings"
+//	"fmt"
+	//"strings"
+	"reflect"
 )
 
 type status int
@@ -30,11 +31,11 @@ type FileWriter struct {
 
 //NewFileWriter Create initializes a new File Writer write to a particular file based on info
 //in the Info dictionary
-func NewFileWriter(tInfo *InfoDict) FileWriter {
+func NewFileWriter(tInfo *InfoDict, fileName string) FileWriter {
 	var f FileWriter
 	f.Info = tInfo
 
-	file, err := os.Create(tInfo.Name)
+	file, err := os.Create(fileName)
 	if err != nil {
 		log.Fatal("Error creating file to write pieces\n", err)
 	}
@@ -63,7 +64,7 @@ func (f *FileWriter) Write(data []byte, index int) error {
 	//}
 
 	_, err := f.DataFile.WriteAt(data, int64(index*f.Info.PieceLength))
-	fmt.Println(err)
+	//fmt.Println(err)
 	return err
 }
 
@@ -71,11 +72,10 @@ func (f *FileWriter) checkSHA1(data []byte, index int) bool {
 	// compute the hash of data
 	hash := sha1.New()
 	io.WriteString(hash, string(data))
-	dataHash := string(hash.Sum(nil))
-	pieceHash := f.Info.Pieces[index*20 : (index+1)*20+1]
-	fmt.Printf("%0.2x\n",dataHash)
-	fmt.Printf("%0.2x\n",pieceHash)
-	return strings.Compare(dataHash, pieceHash) == 0
+	dataHash := hash.Sum(nil)
+	pieceHash := f.Info.Pieces[index*20 : (index+1)*20]
+	
+	return reflect.DeepEqual(dataHash, pieceHash)
 }
 
 // Delete destroys the file that has been created and the FileWriter
