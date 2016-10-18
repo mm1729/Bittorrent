@@ -25,20 +25,22 @@ const (
 	HAVE MsgType = iota
 	// BITFIELD is a message type
 	BITFIELD MsgType = iota
+
 	// REQUEST is a message type
 	REQUEST MsgType = iota
+		// PIECE is a message type
+	PIECE MsgType = iota
 	// CANCEL is a message type
 	CANCEL MsgType = iota
-	// PIECE is a message type
-	PIECE
+	
 )
 
 // Payload struct containing payload information in a message
 type Payload struct {
-	pieceIndex int
+	pieceIndex int32
 	bitField   []byte
-	begin      int
-	length     int
+	begin      int32
+	length     int32
 	block      []byte
 } // last part of the message. contains message content
 
@@ -56,10 +58,15 @@ func NewPayload(m MsgType, payloadBytes []byte) Payload {
 		// which tells you which pieces the peer has
 		p.bitField = payloadBytes
 	case PIECE: // peer gives you the piece that you requested
+	
 		reader := bytes.NewReader(payloadBytes)
 		binary.Read(reader, binary.BigEndian, &p.pieceIndex)
 		binary.Read(reader, binary.BigEndian, &p.begin)
-		binary.Read(reader, binary.BigEndian, &p.block)
+		p.block = payloadBytes[8:]
+		//binary.Read(reader, binary.BigEndian, &p.block)
+
+	
+		
 	case REQUEST: //requests a piece
 		fallthrough
 	case CANCEL: //rejects a piece that's just been received
@@ -83,7 +90,7 @@ type Message struct {
 // NewMessage parses byte array to create a message struct
 func NewMessage(msgBytes []byte) (Message, error) {
 	var msg Message
-
+	
 	switch msg.Mtype = getType(msgBytes); msg.Mtype {
 	case KEEPALIVE:
 	case CHOKE:
@@ -105,6 +112,7 @@ func NewMessage(msgBytes []byte) (Message, error) {
 	case BITFIELD:
 		fallthrough
 	case PIECE:
+		fmt.Println("HIT HIT HIT\n")
 		msg.Length = len(msgBytes) - 4
 		msg.Payload = NewPayload(msg.Mtype, msgBytes[5:])
 	default:
@@ -183,7 +191,7 @@ func CreateMessage(msgType MsgType, payLoad Payload) (arr []byte, err error) {
 	return arr, nil
 }
 
-func intToByteArr(i int) []byte {
+func intToByteArr(i int32) []byte {
 	bs := make([]byte, 4)
 	binary.BigEndian.PutUint32(bs, uint32(i))
 	return bs

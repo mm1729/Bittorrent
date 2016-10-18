@@ -1,6 +1,10 @@
 package main
 
-import "math"
+import (
+	"math"
+	"fmt"
+	//"os"
+)
 
 /*
 PieceManager manages the pieces client needs to request
@@ -92,7 +96,13 @@ func (t *PieceManager) ReceivePiece(pieceIndex int, piece []byte) bool {
 				//mark ours that we now have that piece
 				t.bitField[index] = t.bitField[index] | (bitmask << num)
 				//write the piece
-				t.fileWriter.Write(piece, pieceIndex)
+		
+				err := t.fileWriter.Write(piece, pieceIndex)
+				fmt.Println(err)
+				err  =t.fileWriter.Sync()
+				//err  =t.fileWriter.Finish()
+				//os.Exit(1)
+			
 				return true
 			}
 		}
@@ -144,6 +154,8 @@ func (t *PieceManager) GetNextRequest() int {
 	if len(t.requestQueue) == 0 {
 		//compute a new one if there is more to request
 		if val := t.computeQueue(); val == false {
+			t.fileWriter.Sync()
+			t.fileWriter.Finish()
 			return -1
 		}
 	}
