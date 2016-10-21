@@ -3,12 +3,11 @@ package main
 import (
 	"crypto/sha1"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
-//	"fmt"
-	//"strings"
-	"reflect"
+	"strings"
 )
 
 type status int
@@ -64,7 +63,7 @@ func (f *FileWriter) Write(data []byte, index int) error {
 	//}
 
 	_, err := f.DataFile.WriteAt(data, int64(index*f.Info.PieceLength))
-	//fmt.Println(err)
+	fmt.Println(err)
 	return err
 }
 
@@ -72,10 +71,11 @@ func (f *FileWriter) checkSHA1(data []byte, index int) bool {
 	// compute the hash of data
 	hash := sha1.New()
 	io.WriteString(hash, string(data))
-	dataHash := hash.Sum(nil)
-	pieceHash := f.Info.Pieces[index*20 : (index+1)*20]
-	
-	return reflect.DeepEqual(dataHash, pieceHash)
+	dataHash := string(hash.Sum(nil))
+	pieceHash := f.Info.Pieces[index*20 : (index+1)*20+1]
+	fmt.Printf("%0.2x\n", dataHash)
+	fmt.Printf("%0.2x\n", pieceHash)
+	return strings.Compare(dataHash, pieceHash) == 0
 }
 
 // Delete destroys the file that has been created and the FileWriter
@@ -101,9 +101,9 @@ func (f *FileWriter) Finish() error {
 	return nil
 }
 
-func (f *FileWriter) Sync() error{
+func (f *FileWriter) Sync() error {
 
-		if err := f.DataFile.Sync(); err != nil {
+	if err := f.DataFile.Sync(); err != nil {
 		return err
 	}
 	return nil

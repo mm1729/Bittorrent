@@ -27,7 +27,7 @@ type PeerDownloader struct {
 	info     TorrentInfo  //information about the torrent [see above]
 	peerList []Peer       //list of RU peer
 	manager  PieceManager //manages requests for pieces
-	
+
 }
 
 /*
@@ -43,8 +43,7 @@ func NewPeerDownloader(tInfo TorrentInfo, peers []Peer, fileName string) PeerDow
 
 	p.info = tInfo
 	p.peerList = peers
-	p.manager = NewPieceManager(tInfo.TInfo, 10,fileName)
-
+	p.manager = NewPieceManager(tInfo.TInfo, 10, fileName)
 
 	return p
 }
@@ -192,7 +191,7 @@ func (t *PeerDownloader) StartDownload() error {
 		for {
 			//10. Send a request package
 			reqPieceID := t.manager.GetNextRequest()
-			fmt.Println("Requesting Piece: ",reqPieceID)
+			fmt.Println("Requesting Piece: ", reqPieceID)
 			if reqPieceID == -1 {
 				break
 			}
@@ -212,25 +211,6 @@ func (t *PeerDownloader) StartDownload() error {
 				return err
 			}
 			pieceMsg, err := NewMessage(piece)
-			if err != nil{
-				return err
-			}
-			if pieceMsg.Mtype == CHOKE{
-				for{
-					inMsg, err1 := t.getPacket(pRead)
-					if err1 != nil {
-						return err1
-					}
-					newMsg, err2  := NewMessage(inMsg)
-					if err2 != nil{
-						return err2
-					}
-					if newMsg.Mtype == UNCHOKE{
-						break
-					}
-				}
-			}
-		
 			// 12. Store the response
 			t.manager.ReceivePiece(reqPieceID, pieceMsg.Payload.block)
 			//fmt.Println(status)

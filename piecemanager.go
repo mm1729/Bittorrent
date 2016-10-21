@@ -1,8 +1,8 @@
 package main
 
 import (
-	"math"
 	"fmt"
+	"math"
 	//"os"
 )
 
@@ -28,7 +28,7 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 	var p PieceManager
 
 	//create file writer
-	fW := NewFileWriter(tInfo,fileName)
+	fW := NewFileWriter(tInfo, fileName)
 	p.fileWriter = &fW
 
 	//number of pieces in total
@@ -96,19 +96,12 @@ func (t *PieceManager) ReceivePiece(pieceIndex int, piece []byte) bool {
 				//mark ours that we now have that piece
 				t.bitField[index] = t.bitField[index] | (bitmask << num)
 				//write the piece
-				fmt.Println("BitField:",t.bitField)
 				err := t.fileWriter.Write(piece, pieceIndex)
-				//fmt.Println(err)
-				if err != nil{
-					return false
-				}
-				err  =t.fileWriter.Sync()
-				if err != nil{
-					return false
-				}
+				fmt.Println(err)
+				err = t.fileWriter.Sync()
 				//err  =t.fileWriter.Finish()
 				//os.Exit(1)
-			
+
 				return true
 			}
 		}
@@ -162,11 +155,10 @@ func (t *PieceManager) GetNextRequest() int {
 		if val := t.computeQueue(); val == false {
 			t.fileWriter.Sync()
 			t.fileWriter.Finish()
-			fmt.Println(t.bitField)
 			return -1
 		}
 	}
-	fmt.Println("request-queue",t.requestQueue)
+	fmt.Println("request-queue", t.requestQueue)
 	//pop off queue
 	next := t.requestQueue[0]
 	t.requestQueue = t.requestQueue[1:]
