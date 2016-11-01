@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 )
 
 //ClientID is the 20 byte id of our client
@@ -16,7 +17,7 @@ func main() {
 
 	if len(os.Args) < 3 {
 		fmt.Println("Illegal USAGE!\n USAGE : ./Bittorrent <torrent_file> <output file>")
-		return 
+		return
 	}
 	torrentFile := os.Args[1]
 	fileName := os.Args[2]
@@ -30,9 +31,9 @@ func main() {
 	hash := torrent.InfoHash()
 	iDict := torrent.InfoDict()
 
-	// Tracker connection 
+	// Tracker connection
 	tkInfo := NewTracker(hash, torrent, &iDict)
-	peerList := tkInfo.Connect()
+	peerList, _ := tkInfo.Connect()
 	fmt.Printf("%v\n", peerList)
 
 	//Start peer download
@@ -44,9 +45,21 @@ func main() {
 		InfoHash:     string(hash[:len(hash)]),
 	}
 
-	PeerDownloader := NewPeerDownloader(tInfo, peerList,fileName)
-	PeerDownloader.StartDownload()
+	PeerDownloader := NewPeerDownloader(tInfo, peerList, fileName)
 
+	// keep announcing to tracker at minInterval
+	//ticker := time.NewTicker(time.Second * time.Duration(minInterval))
+	ticker := time.NewTicker(time.Second * 2)
+
+	go func() {
+		for _ = range ticker.C {
+			tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left =
+				PeerDownloader.getProgress()
+			tkInfo.sendGetRequest("")
+		}
+	}()
+	PeerDownloader.StartDownload()
+	ticker.Stop() // ticker is done
 	// Send event stopped message to tracker
 	tkInfo.Disconnect()
 }

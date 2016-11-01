@@ -285,6 +285,20 @@ func (t *PeerDownloader) sendBitField() ([]byte, error) {
 	return CreateMessage(BITFIELD, payload)
 }
 
+func (t *PeerDownloader) getProgress() (uploaded int, downloaded int, left int) {
+	bitField := t.manager.GetBitField()
+	uploaded = 0 // for now no uploading
+	numDownloaded := 0
+	for _, b := range bitField {
+		if b != 0 {
+			numDownloaded += int(((b >> 7) & 1) + ((b >> 6) & 1) + ((b >> 5) & 1) + ((b >> 4) & 1) + ((b >> 3) & 1) + ((b >> 2) & 1) + ((b >> 1) & 1) + b&1)
+		}
+	}
+	downloaded = numDownloaded * t.info.TInfo.PieceLength
+	left = t.info.TInfo.Length - downloaded
+	return
+}
+
 // receiveBitField takes the message received
 // and extracts the bitfield from it
 func (t *PeerDownloader) receiveBitField(rawMsg []byte) ([]byte, error) {

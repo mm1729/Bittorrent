@@ -14,7 +14,10 @@ import (
 
 //TrackerInfo contains the infomation needed to connect and disconnect from tracker
 type TrackerInfo struct {
-	URL string //url of tracker to send the GET request
+	urlStub    string // this is the part that is always constant
+	Uploaded   int
+	Downloaded int
+	Left       int
 }
 
 //TrackerResponse is the decoded response of the Tracker
@@ -22,7 +25,8 @@ type TrackerResponse struct {
 	Complete    int64
 	Downloaded  int64
 	Incomplete  int64
-	MinInterval int64
+	Interval    int64
+	MinInterval int64 `bencode:"min interval"`
 	Peers       []Peer
 }
 
@@ -33,7 +37,8 @@ type Peer struct {
 	Port   int64  `bencode:"port"`
 }
 
-func getURL(hash []byte, tInfo *Torrent, iDict *InfoDict) string {
+//NewTracker initializes a new tracker CONNECTION and takes a byte array of the info hash
+func NewTracker(hash []byte, tInfo *Torrent, iDict *InfoDict) (trkInfo TrackerInfo) {
 	hexStr := []rune(hex.EncodeToString(hash))
 	urlHash := ""
 
@@ -41,20 +46,21 @@ func getURL(hash []byte, tInfo *Torrent, iDict *InfoDict) string {
 		urlHash += "%" + string(hexStr[i]) + string(hexStr[i+1])
 	}
 
-	url := tInfo.Announce + "?info_hash=" + urlHash + "&peer_id=DONDESTALABIBLIOTECA&port=6881&uploaded=0&downloaded=0&left=" + strconv.Itoa(iDict.Length)
-
-	return url
-}
-
-//NewTracker initializes a new tracker CONNECTION and takes a byte array of the info hash
-func NewTracker(hash []byte, tInfo *Torrent, iDict *InfoDict) (trkInfo TrackerInfo) {
-	trkInfo.URL = getURL(hash, tInfo, iDict)
+	trkInfo.urlStub = tInfo.Announce + "?info_hash=" + urlHash + "&peer_id=DONDESTALABIBLIOTECA&port=6881"
+	trkInfo.Uploaded, trkInfo.Downloaded, trkInfo.Left = 0, 0, iDict.Length
 	return
 }
 
 func (trkInfo TrackerInfo) sendGetRequest(event string) []byte {
-	fmt.Printf("\nSending GET Request to : %s\n", trkInfo.URL+"&event="+event)
-	resp, err := http.Get(trkInfo.URL)
+	url := trkInfo.urlStub + "&uploaded=" + strconv.Itoa(trkInfo.Uploaded) + "&downloaded=" +
+		strconv.Itoa(trkInfo.Downloaded) + "&left=" + strconv.Itoa(trkInfo.Left)
+
+	if event != "" { // add event if it s a sepcial event like started or completed
+		url += "&event=" + event
+	}
+
+	fmt.Printf("\nSending GET Request to : %s\n", url)
+	resp, err := http.Get(url)
 	defer resp.Body.Close()
 	if err != nil {
 		log.Fatal("Unable to contact Tracker", err)
@@ -71,7 +77,7 @@ func (trkInfo TrackerInfo) sendGetRequest(event string) []byte {
 }
 
 //Connect sends a GET request to the tracker
-func (trkInfo TrackerInfo) Connect() (peerList []Peer) {
+func (trkInfo TrackerInfo) Connect() ([]Peer, int64) {
 	body := trkInfo.sendGetRequest("started")
 	var dec TrackerResponse
 	errDecode := bencode.DecodeBytes(body, &dec)
@@ -79,12 +85,14 @@ func (trkInfo TrackerInfo) Connect() (peerList []Peer) {
 		log.Fatal("Unable to decode the Tracker Respose\n", errDecode)
 	}
 
+	var peerList []Peer
 	for _, p := range dec.Peers {
 		if strings.HasPrefix(p.PeerID, "-RU") {
 			peerList = append(peerList, p)
 		}
 	}
-	return
+
+	return peerList, dec.Interval
 }
 
 // Disconnect sends a event stopped status to the tracker
