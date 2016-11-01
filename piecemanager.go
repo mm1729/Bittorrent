@@ -41,10 +41,6 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 	p.bitField = make([]byte, int(numBytes))
 	//make the requestqueue with the given the users capacity
 	p.requestQueue = make([]int, 0, requestQueueSize)
-	for i := 0; i <= 62; i += 1 {
-		p.bitField[i] = 255
-	}
-	p.bitField[63] = 252
 	return p
 }
 
