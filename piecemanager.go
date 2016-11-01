@@ -1,8 +1,8 @@
 package main
 
 import (
-	"math"
 	"fmt"
+	"math"
 	//"os"
 )
 
@@ -28,7 +28,7 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 	var p PieceManager
 
 	//create file writer
-	fW := NewFileWriter(tInfo,fileName)
+	fW := NewFileWriter(tInfo, fileName)
 	p.fileWriter = &fW
 
 	//number of pieces in total
@@ -41,7 +41,6 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 	p.bitField = make([]byte, int(numBytes))
 	//make the requestqueue with the given the users capacity
 	p.requestQueue = make([]int, 0, requestQueueSize)
-
 	return p
 }
 
@@ -92,23 +91,23 @@ func (t *PieceManager) ReceivePiece(pieceIndex int, piece []byte) bool {
 		for _, num := range nums {
 			if uint(index)*8+num == uint(pieceIndex) {
 				//mark it off as zero
-				t.missingField[index] = element & ^(bitmask << num)
+				t.missingField[index] = element & ^(bitmask << (7 - num))
 				//mark ours that we now have that piece
-				t.bitField[index] = t.bitField[index] | (bitmask << num)
+				t.bitField[index] = t.bitField[index] | (bitmask << (7 - num))
 				//write the piece
-				fmt.Println("BitField:",t.bitField)
+				fmt.Println("BitField:", t.bitField)
 				err := t.fileWriter.Write(piece, pieceIndex)
 				//fmt.Println(err)
-				if err != nil{
+				if err != nil {
 					return false
 				}
-				err  =t.fileWriter.Sync()
-				if err != nil{
+				err = t.fileWriter.Sync()
+				if err != nil {
 					return false
 				}
 				//err  =t.fileWriter.Finish()
 				//os.Exit(1)
-			
+
 				return true
 			}
 		}
@@ -134,7 +133,7 @@ func (t *PieceManager) computeQueue() bool {
 
 			for _, num := range nums {
 				//if it is marked as 1, and we have room
-				if element&(bitmask<<num) != 0 && cap(t.requestQueue) != len(t.requestQueue) {
+				if element&(bitmask<<(7-num)) != 0 && cap(t.requestQueue) != len(t.requestQueue) {
 
 					//append this index to the request queue
 					t.requestQueue = append(t.requestQueue, index*8+int(num))
@@ -166,7 +165,7 @@ func (t *PieceManager) GetNextRequest() int {
 			return -1
 		}
 	}
-	fmt.Println("request-queue",t.requestQueue)
+	fmt.Println("request-queue", t.requestQueue)
 	//pop off queue
 	next := t.requestQueue[0]
 	t.requestQueue = t.requestQueue[1:]
