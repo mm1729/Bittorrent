@@ -65,12 +65,22 @@ is received to the send the next REQUEST. If the peer receives a CHOKE
 message at any time in this loop, we wait until we receive an UNCHOKE 
 message to resume sending REQUESTS.
 
+We added a time calculation of the total time it takes to download all the pieces.
+
 //////////////////
 // PIECEMANAGER //
 //////////////////
-
 
 PieceManager keeps track of what pieces need to be downloaded. Currently,
 it works with one peer at a time. It stores the peer bitfield and the
 client bitfield to check what pieces it is missing. PieceManager stores
 the requests (10 by default) in a queue to quickly send the requests
+
+/////////
+// RTT //
+/////////
+
+findRTT - Finds the round trip time for a given peer. This calculates the time it takes to ping a peer 10 times. Then divide this number by 10 to find the average.
+
+findMinRTT - Finds the minimum round trip time of the 3 peers that are contacted. 
+
