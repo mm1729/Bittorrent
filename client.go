@@ -33,7 +33,7 @@ func main() {
 
 	// Tracker connection
 	tkInfo := NewTracker(hash, torrent, &iDict)
-	peerList, _ := tkInfo.Connect()
+	peerList, interval := tkInfo.Connect()
 	fmt.Printf("%v\n", peerList)
 
 	//Start peer download
@@ -47,9 +47,9 @@ func main() {
 
 	PeerDownloader := NewPeerDownloader(tInfo, peerList, fileName)
 
-	// keep announcing to tracker at minInterval
-	//ticker := time.NewTicker(time.Second * time.Duration(minInterval))
-	ticker := time.NewTicker(time.Second * 2)
+	// keep announcing to tracker at Interval seconds
+	ticker := time.NewTicker(time.Second * time.Duration(interval))
+	fmt.Println("Sending updates to tracker at ", interval, "s")
 
 	go func() {
 		for _ = range ticker.C {
@@ -61,5 +61,19 @@ func main() {
 	PeerDownloader.StartDownload()
 	ticker.Stop() // ticker is done
 	// Send event stopped message to tracker
+	tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left = PeerDownloader.getProgress()
+	fmt.Println(tkInfo.Uploaded, " ", tkInfo.Downloaded, " ", tkInfo.Left)
+
+	// we calculated tkInfo.Downloaded without accounting for the actual length of
+	// the last piece. So, if the total downloaded is some bytes < piece length
+	// just say it downloaded the whole thing.
+	if tkInfo.Downloaded-iDict.Length < iDict.PieceLength {
+		tkInfo.Downloaded = iDict.Length
+		tkInfo.Left = 0
+	}
+
+	if tkInfo.Left == 0 { // send completed message if the download is complete
+		tkInfo.sendGetRequest("completed")
+	}
 	tkInfo.Disconnect()
 }

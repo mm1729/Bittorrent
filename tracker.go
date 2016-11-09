@@ -87,7 +87,7 @@ func (trkInfo TrackerInfo) Connect() ([]Peer, int64) {
 
 	var peerList []Peer
 	for _, p := range dec.Peers {
-		if strings.HasPrefix(p.PeerID, "-RU") {
+		if strings.HasPrefix(p.PeerID, "-RU11") {
 			peerList = append(peerList, p)
 		}
 	}
