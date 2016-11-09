@@ -15,6 +15,7 @@ type PieceManager struct {
 	requestQueue []int  //queues up index of pieces that client needs to request
 	queueSize    int    //capacity of the requestQueue slice(chosen by user)
 	fileWriter   *FileWriter
+	infoDict     *InfoDict
 }
 
 /*
@@ -41,6 +42,7 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 	p.bitField = make([]byte, int(numBytes))
 	//make the requestqueue with the given the users capacity
 	p.requestQueue = make([]int, 0, requestQueueSize)
+	p.infoDict = tInfo
 	return p
 }
 
@@ -169,4 +171,18 @@ func (t *PieceManager) GetNextRequest() int {
 	next := t.requestQueue[0]
 	t.requestQueue = t.requestQueue[1:]
 	return next
+}
+
+func (t *PieceManager) getProgress() (uploaded int, downloaded int, left int) {
+	bitField := t.GetBitField()
+	uploaded = 0 // for now no uploading
+	numDownloaded := 0
+	for _, b := range bitField {
+		if b != 0 {
+			numDownloaded += int(((b >> 7) & 1) + ((b >> 6) & 1) + ((b >> 5) & 1) + ((b >> 4) & 1) + ((b >> 3) & 1) + ((b >> 2) & 1) + ((b >> 1) & 1) + b&1)
+		}
+	}
+	downloaded = numDownloaded * t.infoDict.PieceLength
+	left = t.infoDict.Length - downloaded
+	return
 }
