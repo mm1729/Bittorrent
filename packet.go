@@ -10,7 +10,7 @@ import (
 
 type PacketHandler interface {
 	ReceiverArbitraryPacket(pRead *bufio.Reader)
-	SendArbitraryPacket(pWriter *bufio.Writer, mType MsgType, payload *Payload)
+	SendArbitraryPacket(pWriter *bufio.Writer, packet []byte)
 	ReceiveHandshakePacket(pRead *bufio.Reader, peer Peer, info TorrentInfo)
 	SendHandshakePacket(pWriter *bufio.Writer, info TorrentInfo)
 }
@@ -47,17 +47,10 @@ func (t *Packet) ReceiveArbitraryPacket(pRead *bufio.Reader) (Message, error) {
 /*
 * sends a packet of a given message type
 * @pWrite: ptr to bufio.Writer used to write out to TCP socket
-* @mType: see message.go for a list of Message types
-* @payload: specifies ptr to the payload to be used in message
 * returns: error
 * @see: ReadArbitraryPacket for how to read in a packet
  */
-func (t *Packet) SendArbitraryPacket(pWrite *bufio.Writer, mType MsgType, payload *Payload) error {
-	//create the message []byte
-	message, err := CreateMessage(mType, *payload)
-	if err != nil {
-		return err
-	}
+func (t *Packet) SendArbitraryPacket(pWrite *bufio.Writer, packet []byte) error {
 	//write it out to socket
 	return bufferWrite(pWrite, message)
 }

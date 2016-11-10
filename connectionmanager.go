@@ -80,7 +80,7 @@ func (t *ConnectionManager) StartConnection(conn Conn, peer Peer, tInfo TorrentI
 * @msg: Message struct
 * returns: message to respond, error
  */
-func (t *ConnectionManager) ReceiveMessage() error {
+func (t *ConnectionManager) ReceiveNextMessage() error {
 	inMessage, err := t.packetHandler.ReceiveArbitraryPacket(t.pReader)
 	if err != nil {
 		return err
@@ -162,8 +162,10 @@ func (t *ConnectionManager) ReceiveMessage() error {
 	return nil
 }
 
-func (t *ConnectionManager) SendMessage(msg Message) error {
-
+func (t *ConnectionManager) SendNextMessage() error {
+	msg := t.msgQueue[0]
+	t.msgQueue = t.msgQueue[1:]
+	return t.packet.SendArbitraryPacket(t.pWriter, msg)
 }
 
 func (t *ConnectionManager) GetConnectionStatus() ConnectionStatus {
