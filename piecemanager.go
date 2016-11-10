@@ -6,13 +6,18 @@ import (
 	//"os"
 )
 
+type HaveBroadcast struct {
+	pieceIndex int
+	notSeenBy  int
+}
+
 /*
 * manages pieces for a single peer connection
  */
 type ConnectionPieceManager struct {
-	requestQueue []int
-
-	missingField []byte
+	requestQueue   []int  //holds the next pieces to request
+	missingField   []byte //pieces we need from the peer
+	mostRecentHave uint64 //last seen have message
 }
 
 /*
@@ -29,6 +34,9 @@ type PieceManager struct {
 
 	fileWriter *FileWriter
 	infoDict   *InfoDict
+
+	haveQueue     []HaveBroadcast //broadcast which pieces we havei
+	lastHaveIndex uint64
 }
 
 /*
@@ -57,7 +65,7 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 	p.missingField = make([]byte, cap(peerField), cap(peerField))
 
 	p.numConnections = 0
-
+	p.lastHaveIndex = 0
 	p.infoDict = tInfo
 	return p
 }
@@ -72,7 +80,7 @@ func (t *PieceManager) RegisterConnection() int {
 
 	var con ConnectionPieceManager
 	t.manager[conNum] = &con
-
+	com.mostRecentHave = -1
 	con.missingField = make([]byte, cap(t.missingField), cap(t.missingField))
 	return conNum
 }
@@ -253,7 +261,51 @@ func (t *PieceManager) GetNextRequest(connection int) int {
 	return next
 }
 
-func (t *PieceManager) getProgress() (uploaded int, downloaded int, left int) {
+/*
+* attempt to retreive the next have broadcast, if there is one
+* @connection: connection descriptor for the calling peer
+* returns: the index of the piece broadcasted
+ */
+func (t *PieceManager) GetNextHaveBroadcast(connection int) int {
+	//lock
+	lastSeen = t.manager[connection].mostRecentHave
+	if len(t.haveQueue) != 0 {
+		for index := range len(t.haveQueue) {
+			if lastSeen < t.haveQueue[index].index {
+				t.manager[connection].mostRecentHave = t.haveQueue[index].index
+				t.haveQueue[index].notSeenBy--
+				have = t.haveQueue[index].pieceIndex
+				if t.haveQueue[index].notSeenBy == 0 {
+					t.haveQueue = t.haveQueue[1:]
+				}
+				return have
+			}
+		}
+	}
+	return -1
+	//unlock
+
+}
+
+/*
+* creates a have broadcast to all connected peers when we get a new piece
+* @pieceIndex: index to broadcast a notification of
+ */
+func (t *PieceManager) CreateHaveBroadcast(pieceIndex int) {
+	//lock
+	var h HaveBroadcast
+	h.pieceIndex = pieceIndex            //set the index of piece to broadcast
+	t.lastHaveIndex += 1                 //increase the piecemanager's have index
+	h.index = (t.lastHaveIndex)          //set this have broadcast's index to the next monotically increasing index
+	h.notSeenBy = t.numConnections       //keep a reference count of how many peers have seen this
+	t.haveQueue = append(t.haveQueue, h) //append it to the queue
+	//unlock
+}
+
+/**
+* returns the current progress of the uploading/downloading
+**/
+func (t *PieceManager) GetProgress() (uploaded int, downloaded int, left int) {
 	bitField := t.GetBitField()
 	uploaded = 0 // for now no uploading
 	numDownloaded := 0
