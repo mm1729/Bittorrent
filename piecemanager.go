@@ -16,8 +16,9 @@ type HaveBroadcast struct {
  */
 type ConnectionPieceManager struct {
 	requestQueue   []int  //holds the next pieces to request
-	missingField   []byte //pieces we need from the peer
+	peerField      []byte //pieces the peer has
 	mostRecentHave uint64 //last seen have message
+
 }
 
 /*
@@ -25,9 +26,11 @@ PieceManager manages the pieces client needs to request
 */
 type PieceManager struct {
 	//global fields
-	bitField     []byte //pieces client has
-	missingField []byte //missing
-	maxQueueSize int    //capacity of the requestQueue slice(chosen by user)
+	bitField []byte //pieces client has
+	//missingField []byte //missing
+	transitField []byte //determine if piece is intransit
+
+	maxQueueSize int //capacity of the requestQueue slice(chosen by user)
 
 	managers       []*ConnectionPieceManager //manages piece queues for a given peer
 	numConnections int
@@ -61,8 +64,8 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 	numBytes := math.Ceil(numPieces / 8)
 	//create the bitfield with max numBytes
 	p.bitField = make([]byte, int(numBytes), int(numBytes))
-	//create missing field to keep track of what pieces will be requested (don't request twice)
-	p.missingField = make([]byte, cap(peerField), cap(peerField))
+	//pieces which peers have claimed responsbility
+	p.transitField = make([]byte, int(numBytes), int(numBytes))
 
 	p.numConnections = 0
 	p.lastHaveIndex = 0
@@ -74,15 +77,25 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 * create a piece manager for a new connection
 * returns: connection descriptor
  */
-func (t *PieceManager) RegisterConnection() int {
+func (t *PieceManager) RegisterConnection(peerField []byte) int {
 	conNum = t.numConnections
 	t.numConnections++
 
 	var con ConnectionPieceManager
 	t.manager[conNum] = &con
 	com.mostRecentHave = -1
-	con.missingField = make([]byte, cap(t.missingField), cap(t.missingField))
+	con.peerField = make([]byte, cap(t.bitField), cap(t.bitField))
+
 	return conNum
+}
+
+func (t *PieceManager) UnregisterConnection(connection int) {
+	for _, index := range t.manager[connection].requestQueue {
+		byteIndex := index / 8
+		offset := index % 8
+
+		t.manager[connection] &= (0 << (7 - offset))
+	}
 }
 
 /**
@@ -92,7 +105,7 @@ func (t *PieceManager) RegisterConnection() int {
 * @pieceIndex: the actual index of this piece
 * returns: whether we are interested in it
 **/
-func (t *PieceManager) UpdateMissingField(connection int, pieceIndex int) bool {
+func (t *PieceManager) UpdatePeerField(connection int, pieceIndex int) {
 	//a peer has told us it now has a piece
 	//are we now interested in it?
 	//if we are interested add it to missingfield
@@ -102,38 +115,47 @@ func (t *PieceManager) UpdateMissingField(connection int, pieceIndex int) bool {
 	offset := pieceIndex % 8
 	bit = 1 << (7 - offset)
 
-	mask := ^(t.bitField[index] & bit) & ^(t.missingField[index] && bit)
-	//equals zero if we don't currently have it and it is not current offered by another peer we are talking too
-	if mask == 0 {
-		t.manager[connection].missingField[index] |= bit
-		return true
-	} else {
-		return false
-	}
+	//add to the peer's list of pieces they have
+	t.manager[connection].peerField[index] |= bit
+
 }
 
 /*
  *determines which pieces we should request from 'peer' using 'connecton'
- @peerField: the peer's bitfield
  @connection: connection descriptor for the peer
  returns: whether client is interested
 */
-func (t *PieceManager) ComputeMissingField(peerField []byte, connection int) bool {
-	//initialize a missingField of capacity same as the peerField len
-	//default we are not interested
+func (t *PieceManager) ComputeRequestQueue(connection int) bool {
+	//construct the new request queue for the peer
+	t.manager[connection].requestQueue = make([]int, 0, t.maxQueueSize)
+	//we are not interested by default
 	interested := false
 	//for all bytes in the peer field
-	for index, element := range peerField {
-		//compute what this peer has that we don't have and other peers we are talking to don't have
-		mask := (^(t.bitField[index]) & element & ^(t.missingField[index]))
+	for index, element := range t.manager[connection].peerField {
+		//compute what this peer has that no other peers has and we don't have
+		mask := (^(t.bitField[index]) & element & ^(t.transitField[index]))
 		//if there is anything found
 		if mask != 0 {
 			//we are interested
 			interested = true
-			//or it with the current missing field
-			t.missingField[index] |= mask
-			//add this to connection field
-			t.manager[connection].missingField[index] = mask
+			nums := [8]uint{0, 1, 2, 3, 4, 5, 6, 7}
+			//go through the mask and get the index of those pieces
+			for num := range nums {
+				if mask&1<<(7-num) == 1 {
+					//if can fit in queue, add them to the queue
+					if len(t.manager[connection].requestQueue) < t.maxQueueSize {
+						//add piece to request queue
+						t.manager[connection].requestQueue = append(t.manager[connection].requestQueue, index*8+num)
+						//a peer has claimed responsibility for this piece
+						t.transitField[index] |= 1 << (7 - num)
+					}
+				}
+				//if we can no longer fit pieces in the queue
+				if len(t.manager[connection].requestQueue) == t.maxQueueSize {
+					return interested
+				}
+			}
+
 		}
 
 	}
@@ -166,7 +188,6 @@ func (t *PieceManager) GetPiece(pieceIndex int) bool {
 
 }
 
-//NOTE: FIX to allow for partial messages, what does it mean to have a partial message?
 /*
 ReceivedPiece writes a received piece and marks it off and writes it
 * @pieceIndex: piece we got
@@ -178,66 +199,21 @@ func (t *PieceManager) ReceivePiece(connection int, pieceIndex int, piece []byte
 	index := pieceIndex / 8
 	offset := pieceIndex % 8
 	bit := 1 << (7 - offset)
-	if t.bitField[index]&bit == 1 || ^t.missingField[index]&bit == 1 {
+	if t.bitField[index]&bit == 1 {
 		return errors.New("ReceivePiece: received piece we already have")
 	} else {
 		//we now have  the piece
 		t.bitField[index] |= bit
-		//remove it from the global missing field
-		t.missingField[index] & & ^bit
-		//remove it from `connection`'s missingField
-		t.manager[connection].missingField[index] &= ^bit
 
 		err := t.fileWriter.Write(piece, pieceIndex)
 
 		if err != nil {
 			return errors.New("ReceivePiece: failed to write file")
 		}
-		err = t.fileWriter.Sync()
-		if err != nil {
-			return errors.New("ReceivePiece: failed to write to disk")
-		}
 
 	}
 	return nil
 
-}
-
-/*
-* computes the Queue of requests that client makes
-* @connection: connection descriptor for peer
-* returns: whether there are any left to request
- */
-func (t *PieceManager) computeQueue(connection int) bool {
-	t.manager[connection].requestQueue = make([]int, 0, t.maxQueueSize)
-
-	nums := [8]uint{0, 1, 2, 3, 4, 5, 6, 7}
-	var bitmask byte
-	//for all bytes in the missingField
-	for index, element := range t.manager[connection].missingField {
-		//if this byte element is not 0
-		if element != 0 {
-			bitmask = 1
-			//for all bits in this element
-
-			for _, num := range nums {
-				//if it is marked as 1, and we have room
-				if element&(bitmask<<(7-num)) != 0 && cap(t.manager[connection].requestQueue) != len(t.manager[connection].requestQueue) {
-
-					//append this index to the request queue
-					t.manager[connection].requestQueue = append(t.manager[connection].requestQueue, index*8+int(num))
-
-				} else if cap(t.manager[connection].requestQueue) == len(t.manager[connection].requestQueue) {
-					return true
-				}
-			}
-		}
-	}
-	//if we found nothing, we are done
-	if len(t.manager[connection].requestQueue) == 0 {
-		return false
-	}
-	return true
 }
 
 /*
