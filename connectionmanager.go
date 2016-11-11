@@ -104,15 +104,20 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		//peer is not interested in downloading from us
 		t.status.PeerInterested = false
 	case BITFIELD:
-		//check if we are interested in downloading from this peer
-		if t.pieceManager.ComputeMissingField(msg.Payload.bitField, t.pieceManager.descriptor) == true {
-			t.status.ClientInterested = true
-		} else {
-			//not interested
-			t.status.ClientInterested = false
-		}
+		//register out connection with the piecemanager by giving it our peer's bitfield
+		t.descriptor = t.pieceManager.RegisterConnection(msg.Payload.bitField)
+
 		//return our bitfield to the peer, to see if they are interested in us
 		t.msgQueue = append(t.msgQueue, CreateMessage(BITFIELD, NewPayload(BITFIELD, t.pieceManager.GetBitField())))
+
+		if t.pieceManager.ComputeRequestQueue(t.descriptor) == true {
+			t.msgQueue = append(t.msgQueue, CreateMessage(INTERESTED, Payload{}))
+			t.ClientInterested = true
+		} else {
+			t.msgQueue = append(t.msgQueue, CreateMessage(NOTINTERESTED, Payload{}))
+			t.ClientInterested = false
+		}
+
 	case PIECE:
 		//received a piece from peer
 		t.pieceManager.ReceivePiece(msg.Payload.pieceIndex, msg.Payload.block)
@@ -131,17 +136,21 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		}
 
 	case HAVE:
-		//if we weren't interested, and are now, send an interested message
-		//else do nothing, the new piece has been added to the queue
-		if t.pieceManager.UpdateMissingField(t.descriptor, msg.Payload.pieceIndex) == true {
-			if t.ClientInterested == false {
-				//we are now interested, tell them we are interested
-				t.msgQueue = append(t.msgQueue, CreateMessage(INTERESTED, Payload{}))
-			}
-			t.ClientInterested = true
-		}
+		//the peer is sending a have msg to update its bitfield
+		t.pieceManager.UpdatePeerField(t.descriptor, msg.Payload.pieceIndex)
+
 	case CANCEL:
 		//implement
+	}
+
+	// if we were not interested, we might be now
+	if t.status.ClientInterested == false {
+		if val := t.pieceManager.ComputeRequestQueue(t.descriptor); val == true {
+			t.status.ClientInterested = val
+			t.msgQueue = append(t.msgQueue, CreateMessage(INTERESTED, Payload{}))
+
+		}
+
 	}
 
 	//if we are interested in this client and not choked
@@ -149,9 +158,11 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		//get next piece to download
 		reqPieceID := t.pieceManager.GetNextRequest()
 		if reqPieceID == -1 {
-			t.status.Downloading == false
+
+			t.msgQueue = append(t.msgQueue, CreateMessage(NOTINTERESTED, Payload{}))
 		} else {
 			//send a request message for that piece, put in queue
+
 			t.msgQueue = append(t.msgQueue, CreateMessage(REQUEST, Payload{pieceIndex: rePieceID, begin: 0, length: int32(t.tInfo.TInfo.PieceLength)}))
 		}
 	}

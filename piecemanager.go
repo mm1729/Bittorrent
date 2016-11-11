@@ -225,9 +225,7 @@ func (t *PieceManager) GetNextRequest(connection int) int {
 	//if queue is empty
 	if len(t.manager[connection].requestQueue) == 0 {
 		//compute a new one if there is more to request
-		if val := t.computeQueue(connection); val == false {
-			t.fileWriter.Sync()
-			t.fileWriter.Finish()
+		if val := t.ComputeRequestQueue(connection); val == false {
 			return -1
 		}
 	}
