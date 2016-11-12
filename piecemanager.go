@@ -7,8 +7,8 @@ package main
  */
 
 import (
-	//	"fmt"
 	"errors"
+	"fmt"
 	"math"
 	"sync"
 	//"os"
@@ -102,7 +102,7 @@ func (t *PieceManager) RegisterConnection(peerField []byte) int {
 	t.manager = append(t.manager, &con)
 	con.mostRecentHave = -1
 	con.peerField = make([]byte, cap(t.bitField), cap(t.bitField))
-
+	copy(con.peerField, peerField)
 	return conNum
 }
 
@@ -162,7 +162,7 @@ func (t *PieceManager) ComputeRequestQueue(connection int) bool {
 			//go through the mask and get the index of those pieces
 			for _, num := range nums {
 				bit := byte(1 << (7 - num))
-				if mask&bit == 1 {
+				if mask&bit != 0 {
 					//if can fit in queue, add them to the queue
 					if len(t.manager[connection].requestQueue) < t.maxQueueSize {
 						//add piece to request queue
@@ -174,6 +174,7 @@ func (t *PieceManager) ComputeRequestQueue(connection int) bool {
 				//if we can no longer fit pieces in the queue
 				if len(t.manager[connection].requestQueue) == t.maxQueueSize {
 					t.mutex.Unlock()
+					fmt.Printf("CONNECTION %d, QUEUE %v\n", connection, t.manager[connection].requestQueue)
 					return interested
 				}
 			}
@@ -182,6 +183,7 @@ func (t *PieceManager) ComputeRequestQueue(connection int) bool {
 
 	}
 	t.mutex.Unlock()
+
 	return interested
 
 }

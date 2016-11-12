@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
+	//"fmt"
 )
 
 // MsgType const enum for Message Type
@@ -163,7 +163,7 @@ func CreateMessage(msgType MsgType, payLoad Payload) (arr []byte, err error) {
 		binary.Write(buf, binary.BigEndian, intToByteArr(payLoad.begin))
 		binary.Write(buf, binary.BigEndian, intToByteArr(payLoad.length))
 		arr = buf.Bytes()
-		fmt.Println("Piece Request:", arr)
+		//fmt.Println("Piece Request:", arr)
 	case PIECE:
 		buf := new(bytes.Buffer)
 		var length = 9 + int32(len(payLoad.block))

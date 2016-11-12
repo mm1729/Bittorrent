@@ -81,6 +81,7 @@ func (t *ConnectionManager) StartConnection(conn net.Conn, peer Peer, tInfo Torr
 
 	t.pWriter = bufio.NewWriter(conn)
 	t.pReader = bufio.NewReader(conn)
+	t.tInfo = tInfo
 
 	if err := t.packetHandler.SendHandshakePacket(t.pWriter, tInfo); err != nil {
 		return err
@@ -126,9 +127,9 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%v\n", inMessage)
+
 	t.descriptor = t.pieceManager.RegisterConnection(inMessage.Payload.bitField)
-	fmt.Println("MADE IT")
+
 	if t.pieceManager.ComputeRequestQueue(t.descriptor) == true {
 
 		var msg []byte
@@ -165,10 +166,12 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
 * returns: message to respond, error
  */
 func (t *ConnectionManager) ReceiveNextMessage() error {
+
 	inMessage, err := t.packetHandler.ReceiveArbitraryPacket(t.pReader)
 	if err != nil {
 		return err
 	}
+
 	switch inMessage.Mtype {
 	case KEEPALIVE:
 		//implement
@@ -178,6 +181,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		t.status.PeerChoked = true
 	case UNCHOKE:
 		//the peer has unchoked us
+		fmt.Println("UNCHOKED!!")
 		t.status.PeerChoked = false
 	case INTERESTED:
 		//peer is interested in downloading from us
@@ -200,6 +204,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 	case BITFIELD:
 		//this would be an error
 	case PIECE:
+		fmt.Printf("CONNECTION %d: PIECE %d\n", t.descriptor, inMessage.Payload.pieceIndex)
 		//received a piece from peer
 		t.pieceManager.ReceivePiece(t.descriptor, inMessage.Payload.pieceIndex, inMessage.Payload.block)
 		//return HAVE MESSAGE to all peers
@@ -279,6 +284,10 @@ func (t *ConnectionManager) QueueMessage(mType MsgType, payload Payload) error {
 }
 
 func (t *ConnectionManager) SendNextMessage() error {
+	if len(t.msgQueue) == 0 {
+		fmt.Println("no message left")
+		return nil
+	}
 	msg := t.msgQueue[0]
 	t.msgQueue = t.msgQueue[1:]
 	return t.packetHandler.SendArbitraryPacket(t.pWriter, msg)

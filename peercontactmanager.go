@@ -73,7 +73,7 @@ func NewPeerContactManager(tInfo TorrentInfo, fileName string, maxConnections ui
 func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 	//handle the peer connection
 	handler := func(tcpConnection net.Conn, peer Peer) {
-		fmt.Printf("connection to %v spawned\n", peer)
+		fmt.Printf("connection to %v spawned\n", peer.IP)
 
 		//open up a new connection manager
 		manager := NewConnectionManager(&t.pieceManager, t.msgQueueMax, t.in, t.out)
