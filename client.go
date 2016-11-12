@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
+	//	"time"
 )
 
 //ClientID is the 20 byte id of our client
@@ -33,7 +33,7 @@ func main() {
 
 	// Tracker connection
 	tkInfo := NewTracker(hash, torrent, &iDict)
-	peerList, interval := tkInfo.Connect()
+	peerList, _ := tkInfo.Connect()
 	fmt.Printf("%v\n", peerList)
 
 	//Start peer download
@@ -45,35 +45,42 @@ func main() {
 		InfoHash:     string(hash[:len(hash)]),
 	}
 
-	PeerDownloader := NewPeerDownloader(tInfo, peerList, fileName)
+	manager := NewPeerContactManager(tInfo, fileName, 10, 10, 10)
+	tkInfo.sendGetRequest("")
+	if err := manager.StartOutgoing(peerList); err != nil {
+		fmt.Println("ERROR!\n")
+		return
+	}
+	for {
 
+	}
 	// keep announcing to tracker at Interval seconds
-	ticker := time.NewTicker(time.Second * time.Duration(interval))
-	fmt.Println("Sending updates to tracker at ", interval, "s")
+	//ticker := time.NewTicker(time.Second * time.Duration(interval))
+	//fmt.Println("Sending updates to tracker at ", interval, "s")
+	/*
+		go func() {
+			for _ = range ticker.C {
+				tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left =
+					PeerDownloader.getProgress()
+				tkInfo.sendGetRequest("")
+			}
+		}()*/
 
-	go func() {
-		for _ = range ticker.C {
-			tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left =
-				PeerDownloader.getProgress()
-			tkInfo.sendGetRequest("")
-		}
-	}()
-	PeerDownloader.StartDownload()
-	ticker.Stop() // ticker is done
+	//ticker.Stop() // ticker is done
 	// Send event stopped message to tracker
-	tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left = PeerDownloader.getProgress()
-	fmt.Println(tkInfo.Uploaded, " ", tkInfo.Downloaded, " ", tkInfo.Left)
+	//tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left = PeerDownloader.getProgress()
+	//fmt.Println(tkInfo.Uploaded, " ", tkInfo.Downloaded, " ", tkInfo.Left)
 
 	// we calculated tkInfo.Downloaded without accounting for the actual length of
 	// the last piece. So, if the total downloaded is some bytes < piece length
 	// just say it downloaded the whole thing.
-	if tkInfo.Downloaded-iDict.Length < iDict.PieceLength {
-		tkInfo.Downloaded = iDict.Length
-		tkInfo.Left = 0
-	}
+	//if tkInfo.Downloaded-iDict.Length < iDict.PieceLength {
+	tkInfo.Downloaded = iDict.Length
+	tkInfo.Left = 0
+	//	}
 
-	if tkInfo.Left == 0 { // send completed message if the download is complete
-		tkInfo.sendGetRequest("completed")
-	}
+	//	if tkInfo.Left == 0 { // send completed message if the download is complete
+	//		tkInfo.sendGetRequest("completed")
+	//	}
 	tkInfo.Disconnect()
 }

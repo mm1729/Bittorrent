@@ -9,10 +9,10 @@ import (
 )
 
 type PacketHandler interface {
-	ReceiverArbitraryPacket(pRead *bufio.Reader)
-	SendArbitraryPacket(pWriter *bufio.Writer, packet []byte)
-	ReceiveHandshakePacket(pRead *bufio.Reader, peer Peer, info TorrentInfo)
-	SendHandshakePacket(pWriter *bufio.Writer, info TorrentInfo)
+	ReceiverArbitraryPacket(pRead *bufio.Reader) (Message, error)
+	SendArbitraryPacket(pWriter *bufio.Writer, packet []byte) error
+	ReceiveHandshakePacket(pRead *bufio.Reader, peer Peer, info TorrentInfo) error
+	SendHandshakePacket(pWriter *bufio.Writer, info TorrentInfo) error
 }
 
 type Packet int
@@ -52,7 +52,7 @@ func (t *Packet) ReceiveArbitraryPacket(pRead *bufio.Reader) (Message, error) {
  */
 func (t *Packet) SendArbitraryPacket(pWrite *bufio.Writer, packet []byte) error {
 	//write it out to socket
-	return bufferWrite(pWrite, message)
+	return bufferWrite(pWrite, packet)
 }
 
 /*

@@ -1,16 +1,21 @@
 package main
 
+/*
+manages connection to multiple peers simultaneously
+responsible for manager incoming/outgoing connections
+*/
+
 import (
-	"bufio"
+	//"bufio"
 	//"bytes"
 	//"encoding/binary"
-	"errors"
+	//"errors"
 	"fmt"
-	"log"
+	//"log"
 	"net"
 	"strconv"
 	//"strings"
-	"time"
+	//"time"
 )
 
 //TorrentInfo used to consolidate space, not the same as InfoDict
@@ -24,175 +29,84 @@ type TorrentInfo struct {
 }
 
 //PeerDownloader used to communicate with the list of peers
-type PeerDownloader struct {
-	info     TorrentInfo  //information about the torrent [see above]
-	peerList []Peer       //list of RU peer
-	manager  PieceManager //manages requests for pieces
-
+type PeerContactManager struct {
+	tInfo          TorrentInfo  //information about the torrent [see above]
+	pieceManager   PieceManager //manages requests for pieces
+	maxConnections uint32
+	maxUnchoked    uint32
+	in             chan bool
+	out            chan bool
+	msgQueueMax    int //maxmimum number of pieces queue up for a peer
 }
 
 /*
 NewPeerDownloader create a new peerdownloader
 * @tInfo: torrent info dictionary
-* @peers: slice of Peer with RU
-* @clientId: user selected peer-id
-* @protoName: protocol version name for this version of BT
+* @fileName: file to save pieces too
+* @maxConnections: maximum TCP connections to peers (in or out) allowed)
+* @maxUnchoked: maximum number of peers we can unchoke at once
 * returns: new PeerDownloader
 */
-func NewPeerDownloader(tInfo TorrentInfo, peers []Peer, fileName string) PeerDownloader {
-	var p PeerDownloader
+func NewPeerContactManager(tInfo TorrentInfo, fileName string, maxConnections uint32, maxUnchoked uint32, maxMsgQueue int) PeerContactManager {
+	var p PeerContactManager
 
-	p.info = tInfo
-	p.peerList = peers
-	p.manager = NewPieceManager(tInfo.TInfo, 10, fileName)
+	p.tInfo = tInfo
+	//global manager for pieces we have and need
+	p.pieceManager = NewPieceManager(tInfo.TInfo, 10, fileName)
+	//number of peers allowed to be connected to simultaneously
+	p.maxConnections = maxConnections
+	//number of peers we are allowed to unchoke
+	p.maxUnchoked = maxUnchoked
 
+	p.in = make(chan bool)  //receive requests for unchoking
+	p.out = make(chan bool) //respond to requests for unchoking
+	p.msgQueueMax = maxMsgQueue
 	return p
 }
 
-// StartDownload method starts download
-func (t *PeerDownloader) StartDownload() error {
+/*
 
-	// find peer with min RTT
-	peerEntry, rtt, err := t.findMinRTT(t.peerList)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("\ndownloading from peer: %v rtt : %d\n", peerEntry, rtt)
-	// 1.) make TCP connection
-	conn, err := net.Dial("tcp", peerEntry.IP+":"+strconv.FormatInt(peerEntry.Port, 10))
-	if err != nil {
-		return err
-	}
+* given a list of peers to connect too, opens up outgoing connections up to maxConnections
+* @peers: list of peers to contact, up to maxConnections
+* returns: error
+ */
+func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
+	//handle the peer connection
+	handler := func(tcpConnection net.Conn, peer Peer) {
+		fmt.Printf("connection to %v spawned\n", peer)
+		//open up a new connection manager
+		manager := NewConnectionManager(&t.pieceManager, t.msgQueueMax, t.in, t.out)
+		//start up the connection
+		manager.StartConnection(tcpConnection, peer, t.tInfo)
+		//loop receiving and sending messages
+		for {
 
-	// 1.) make TCP connection
-	conn, err = net.Dial("tcp", peerEntry.IP+":"+strconv.FormatInt(peerEntry.Port, 10))
-	if err != nil {
-		return err
-	}
-
-	// 2.) get writer & reader to the connection
-	//create socket buffered writer
-	pWriter := bufio.NewWriter(conn)
-	//create socket buffered reader
-	pRead := bufio.NewReader(conn)
-
-	// 3.) forms handshake message (i.e. what we can send) Written in []byte
-	hskmsg := t.getHandshakeMsg()
-
-	// 4.) send handshake message
-	bytesWrite, err := pWriter.Write(hskmsg)
-	if err != nil {
-		return err
-	} else if bytesWrite != len(hskmsg) {
-		return errors.New("StartDownload: not all bytes could be written for handshake")
-	} else if err = pWriter.Flush(); err != nil {
-		return errors.New("StartDownload: could not write handshake to socket")
-	}
-
-	// 5.) gets handshake packet
-	data, err := t.getHandshakePacket(pRead)
-	if err != nil {
-		log.Fatal(err)
-		// validates handshake from peer. Check to make sure its the correct peer w/ info we want
-	} else if err = t.receiveHandshakeMsg(data, peerEntry); err != nil {
-		log.Fatal(err)
-	}
-
-	// 6.) send bitfield to peer. Indicates what pieces I have
-	sendBits, err := t.sendBitField()
-	bytesWrite, err = pWriter.Write(sendBits)
-	if err != nil {
-		return err
-	} else if bytesWrite != len(sendBits) {
-		return errors.New("StartDownload: not all bytes could be written for handshake")
-	} else if err = pWriter.Flush(); err != nil {
-		return errors.New("StartDownload: could not write handshake to socket")
-	}
-
-	// 7.) receive bitfield from peer. Indicates what pieces peer has.
-	rawBitfield, err := t.getPacket(pRead)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	peerBitfield, err := t.receiveBitField(rawBitfield)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if t.manager.CompareBitField(peerBitfield) == false {
-		// maybe send not interested
-		return nil
-	}
-
-	// 8. Send Interested message
-	message, err := CreateMessage(INTERESTED, Payload{})
-	//fmt.Println(message)
-
-	bytesWrite, err = pWriter.Write(message)
-	fmt.Println()
-	//fmt.Println("Request Msg: ",bytesWrite)
-	if err != nil {
-		return err
-	} else if bytesWrite != len(message) {
-		return errors.New("StartDownload: not all bytes could be written for handshake")
-	} else if err = pWriter.Flush(); err != nil {
-		return errors.New("StartDownload: could not write handshake to socket")
-	}
-
-	//9. Get an unchoke message
-	_, err = t.getPacket(pRead)
-	if err != nil {
-		fmt.Println(err)
-	}
-	//fmt.Println(unchoke)
-	downloadTimeStart := time.Now()
-	for {
-		//10. Send a request package
-		reqPieceID := t.manager.GetNextRequest()
-		fmt.Println("Requesting Piece: ", reqPieceID)
-		if reqPieceID == -1 {
-			break
-		}
-		reqMsg, err := t.getRequestMessage(int32(reqPieceID))
-		bytesWrite, err = pWriter.Write(reqMsg)
-		if err != nil {
-			return err
-		} else if bytesWrite != len(reqMsg) {
-			return errors.New("StartDownload: not all bytes could be written for handshake")
-		} else if err = pWriter.Flush(); err != nil {
-			return errors.New("StartDownload: could not write handshake to socket")
+			manager.ReceiveNextMessage()
+			manager.SendNextMessage()
 		}
 
-		// 11. Read the response
-		piece, err := t.getPacket(pRead)
+	}
+
+	for _, peerEntry := range peers {
+		// 1.) make TCP connection
+		conn, err := net.Dial("tcp", peerEntry.IP+":"+strconv.FormatInt(peerEntry.Port, 10))
 		if err != nil {
 			return err
 		}
-		pieceMsg, err := NewMessage(piece)
-		if err != nil {
-			return err
-		}
-		if pieceMsg.Mtype == CHOKE {
-			for {
-				inMsg, err1 := t.getPacket(pRead)
-				if err1 != nil {
-					return err1
-				}
-				newMsg, err2 := NewMessage(inMsg)
-				if err2 != nil {
-					return err2
-				}
-				if newMsg.Mtype == UNCHOKE {
-					break
-				}
-			}
-		}
+		//spawn routine to handle connection
+		go handler(conn, peerEntry)
 
-		// 12. Store the response
-		t.manager.ReceivePiece(reqPieceID, pieceMsg.Payload.block)
-		//fmt.Println(status)
 	}
-	fmt.Printf("Download Time :%v\n", time.Since(downloadTimeStart).String())
+
+	return nil
+
+}
+
+/*
+* opens up a listener to listen for incoming peer connections
+* @port to openup listener on
+* returns error
+ */
+func (t *PeerContactManager) StartIncoming(port uint32) error {
 	return nil
 }
