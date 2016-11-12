@@ -8,6 +8,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"net"
 )
 
@@ -46,6 +47,7 @@ type ConnectionManager struct {
  */
 func NewConnectionManager(pieceManager *PieceManager, msgQueueMax int, out chan<- bool, in <-chan bool) ConnectionManager {
 	var p ConnectionManager
+
 	p.pieceManager = pieceManager
 	//register a connection with the piecemanager so it can keep track of pieces
 
@@ -65,7 +67,6 @@ func NewConnectionManager(pieceManager *PieceManager, msgQueueMax int, out chan<
 	var pkt Packet
 
 	p.packetHandler = &pkt
-
 	return p
 }
 
@@ -77,23 +78,23 @@ func NewConnectionManager(pieceManager *PieceManager, msgQueueMax int, out chan<
 * returns: error
  */
 func (t *ConnectionManager) StartConnection(conn net.Conn, peer Peer, tInfo TorrentInfo) error {
-	var p ConnectionManager
-	p.pWriter = bufio.NewWriter(conn)
-	p.pReader = bufio.NewReader(conn)
 
-	if err := p.packetHandler.SendHandshakePacket(p.pWriter, tInfo); err != nil {
+	t.pWriter = bufio.NewWriter(conn)
+	t.pReader = bufio.NewReader(conn)
+
+	if err := t.packetHandler.SendHandshakePacket(t.pWriter, tInfo); err != nil {
 		return err
 	}
 
-	if err := p.packetHandler.ReceiveHandshakePacket(p.pReader, peer, tInfo); err != nil {
+	if err := t.packetHandler.ReceiveHandshakePacket(t.pReader, peer, tInfo); err != nil {
 		return err
 	}
 
-	if err := p.sendBitFieldMessage(); err != nil {
+	if err := t.sendBitFieldMessage(); err != nil {
 		return err
 	}
 
-	if err := p.receiveBitFieldMessage(); err != nil {
+	if err := t.receiveBitFieldMessage(); err != nil {
 		return err
 	}
 
@@ -107,7 +108,6 @@ func (t *ConnectionManager) StartConnection(conn net.Conn, peer Peer, tInfo Torr
  */
 func (t *ConnectionManager) sendBitFieldMessage() error {
 	//return our bitfield to the peer, to see if they are interested in us
-
 	msg, err := CreateMessage(BITFIELD, NewPayload(BITFIELD, t.pieceManager.GetBitField()))
 	if err != nil {
 		return err
@@ -126,21 +126,24 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%v\n", inMessage)
 	t.descriptor = t.pieceManager.RegisterConnection(inMessage.Payload.bitField)
-
+	fmt.Println("MADE IT")
 	if t.pieceManager.ComputeRequestQueue(t.descriptor) == true {
 
 		var msg []byte
 		var err error
+
 		if msg, err = CreateMessage(INTERESTED, Payload{}); err != nil {
 			return err
 		}
-
+		fmt.Println("INTERESTED")
 		if err := t.packetHandler.SendArbitraryPacket(t.pWriter, msg); err != nil {
 			return err
 		}
 		t.status.ClientInterested = true
 	} else {
+		fmt.Println("NOT INTERESTED")
 		var msg []byte
 		var err error
 		if msg, err = CreateMessage(NOTINTERESTED, Payload{}); err != nil {

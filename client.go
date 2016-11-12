@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 	//	"time"
 )
 
@@ -14,7 +15,7 @@ var ClientID = "DONDESTALABIBLIOTECA"
 var ProtoName = "BitTorrent protocol"
 
 func main() {
-
+	runtime.GOMAXPROCS(2)
 	if len(os.Args) < 3 {
 		fmt.Println("Illegal USAGE!\n USAGE : ./Bittorrent <torrent_file> <output file>")
 		return
@@ -46,7 +47,7 @@ func main() {
 	}
 
 	manager := NewPeerContactManager(tInfo, fileName, 10, 10, 10)
-	tkInfo.sendGetRequest("")
+	//	tkInfo.sendGetRequest("")
 	if err := manager.StartOutgoing(peerList); err != nil {
 		fmt.Println("ERROR!\n")
 		return

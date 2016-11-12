@@ -99,7 +99,7 @@ func (t *PieceManager) RegisterConnection(peerField []byte) int {
 	t.numConnections++
 
 	var con ConnectionPieceManager
-	t.manager[conNum] = &con
+	t.manager = append(t.manager, &con)
 	con.mostRecentHave = -1
 	con.peerField = make([]byte, cap(t.bitField), cap(t.bitField))
 

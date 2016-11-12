@@ -109,7 +109,7 @@ func NewMessage(msgBytes []byte) (Message, error) {
 	case BITFIELD:
 		fallthrough
 	case PIECE:
-		fmt.Println("HIT HIT HIT\n")
+
 		msg.Length = len(msgBytes) - 4
 		msg.Payload = NewPayload(msg.Mtype, msgBytes[5:])
 	default:

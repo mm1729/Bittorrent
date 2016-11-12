@@ -74,6 +74,7 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 	//handle the peer connection
 	handler := func(tcpConnection net.Conn, peer Peer) {
 		fmt.Printf("connection to %v spawned\n", peer)
+
 		//open up a new connection manager
 		manager := NewConnectionManager(&t.pieceManager, t.msgQueueMax, t.in, t.out)
 		//start up the connection
