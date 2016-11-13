@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	//"time"
+	"time"
 )
 
 /*
@@ -172,21 +172,22 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
 * returns: message to respond, error
  */
 func (t *ConnectionManager) ReceiveNextMessage() error {
-	fmt.Printf("WAITING %d\n", t.descriptor)
+
 	inMessage, err := t.packetHandler.ReceiveArbitraryPacket(t.pReader, t.descriptor)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("GOT %d\n", t.descriptor)
 
 	switch inMessage.Mtype {
 	case KEEPALIVE:
 		//implement
 		//clock how much time has gone by, then push a keepalive in
 	case CHOKE:
+
 		//the peer has choked us
 		t.status.PeerChoked = true
 	case UNCHOKE:
+
 		//the peer has unchoked us
 
 		t.status.PeerChoked = false
@@ -194,7 +195,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		//peer is interested in downloading from us
 		t.status.PeerInterested = true
 		//request permission to unchoke this peer
-		fmt.Printf("???")
+
 		t.toPeerContact <- true
 		if answer := <-t.fromPeerContact; answer == true {
 			t.status.ClientChoked = false
@@ -285,29 +286,29 @@ func (t *ConnectionManager) QueueMessage(mType MsgType, payload Payload) error {
 	if msg, err = CreateMessage(mType, payload); err != nil {
 		return err
 	}
-	fmt.Printf("LOCKING %d\n", t.descriptor)
+
 	t.queueLock.Lock()
 
 	t.msgQueue = append(t.msgQueue, msg)
 	t.queueLock.Unlock()
-	fmt.Printf("UNLOCK %d\n", t.descriptor)
+
 	return nil
 
 }
 
 func (t *ConnectionManager) SendNextMessage() error {
-	//	time.Sleep(1)
+
 	t.queueLock.Lock()
 	if len(t.msgQueue) == 0 {
-		//	time.Sleep(2)
-		//	fmt.Println("no message left")
+
 		t.queueLock.Unlock()
 		return nil
 	}
-
+	time.Sleep(10000000)
 	msg := t.msgQueue[0]
 	t.msgQueue = t.msgQueue[1:]
 	t.queueLock.Unlock()
+
 	return t.packetHandler.SendArbitraryPacket(t.pWriter, msg)
 }
 

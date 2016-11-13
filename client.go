@@ -48,7 +48,7 @@ func main() {
 
 	manager := NewPeerContactManager(tInfo, fileName, 10, 10, 10)
 	//	tkInfo.sendGetRequest("")
-	if err := manager.StartOutgoing(peerList); err != nil {
+	if err := manager.StartOutgoing(peerList[1:]); err != nil {
 		fmt.Println("ERROR!\n")
 		return
 	}

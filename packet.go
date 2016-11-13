@@ -25,7 +25,7 @@ type Packet int
 * @see SendArbitraryPacket for sending a packet
  */
 func (t *Packet) ReceiveArbitraryPacket(pRead *bufio.Reader, num int) (Message, error) {
-	fmt.Println("IN")
+
 	// read 1 bytes to find out length
 	msgLength := make([]byte, 4)
 	msgLength[0], _ = pRead.ReadByte()
@@ -35,16 +35,16 @@ func (t *Packet) ReceiveArbitraryPacket(pRead *bufio.Reader, num int) (Message, 
 
 	var length int32
 	binary.Read(bytes.NewReader(msgLength), binary.BigEndian, &length)
-	fmt.Printf("%d: %d\n", length, num)
 
 	data, err := readPacket(int(length), pRead)
-	fmt.Printf("!OUT %d", num)
+
 	if err != nil {
 		return Message{}, err
 	}
 	data = append(msgLength, data...)
 	//form message struct
 	msg, err := NewMessage(data)
+	fmt.Printf("RECEIVED MSG %d\n", msg.Mtype)
 	return msg, err
 }
 
@@ -55,6 +55,7 @@ func (t *Packet) ReceiveArbitraryPacket(pRead *bufio.Reader, num int) (Message, 
 * @see: ReadArbitraryPacket for how to read in a packet
  */
 func (t *Packet) SendArbitraryPacket(pWrite *bufio.Writer, packet []byte) error {
+	fmt.Printf("SENDING %v\n", packet)
 	//write it out to socket
 	return bufferWrite(pWrite, packet)
 }
@@ -157,7 +158,7 @@ func readPacket(length int, pRead *bufio.Reader) ([]byte, error) {
 	totalRead := 0
 	for totalRead < length {
 		nRead, err := pRead.Read(readData)
-		fmt.Printf("READ %d\n", nRead)
+
 		if err != nil {
 			return nil, errors.New("Could not read packet")
 		}
@@ -177,6 +178,7 @@ func readPacket(length int, pRead *bufio.Reader) ([]byte, error) {
 func bufferWrite(pWriter *bufio.Writer, data []byte) error {
 
 	bytesWritten, err := pWriter.Write(data)
+
 	if err != nil {
 		return err
 	} else if bytesWritten != len(data) {

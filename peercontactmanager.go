@@ -15,7 +15,7 @@ import (
 	"net"
 	"strconv"
 	//"strings"
-	//"time"
+	//	"time"
 )
 
 //TorrentInfo used to consolidate space, not the same as InfoDict
@@ -52,7 +52,7 @@ func NewPeerContactManager(tInfo TorrentInfo, fileName string, maxConnections ui
 
 	p.tInfo = tInfo
 	//global manager for pieces we have and need
-	p.pieceManager = NewPieceManager(tInfo.TInfo, 10, fileName)
+	p.pieceManager = NewPieceManager(tInfo.TInfo, 510, fileName)
 	//number of peers allowed to be connected to simultaneously
 	p.maxConnections = maxConnections
 	//number of peers we are allowed to unchoke
@@ -80,28 +80,40 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		//start up the connection
 		manager.StartConnection(tcpConnection, peer, t.tInfo)
 		//loop receiving and sending messages
-		go func() {
+		/*	go func() {
+			i := 0
 			for {
-
-				manager.ReceiveNextMessage()
+				fmt.Println(i)
+				manager.SendNextMessage()
+				time.Sleep(1000000000)
+				i += 1
 			}
-		}()
+		}()*/
 		for {
-			manager.SendNextMessage()
+			err := manager.ReceiveNextMessage()
+			if err != nil {
+				fmt.Printf("%v\n", err)
+				return
+			}
+			err = manager.SendNextMessage()
+			if err != nil {
+				fmt.Printf("%v\n", err)
+			}
 		}
 
 	}
 
 	for _, peerEntry := range peers {
 		// 1.) make TCP connection
-		fmt.Printf("ATTEMPTING %v\n", peerEntry.IP)
+
 		conn, err := net.Dial("tcp", peerEntry.IP+":"+strconv.FormatInt(peerEntry.Port, 10))
-		fmt.Printf("YES %v\n", peerEntry.IP)
+
 		if err != nil {
 			return err
 		}
 		//spawn routine to handle connection
 		go handler(conn, peerEntry)
+		break
 
 	}
 
