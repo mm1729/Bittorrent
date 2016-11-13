@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
+	//`	"time"
 )
 
 /*
@@ -34,6 +36,8 @@ type ConnectionManager struct {
 	pWriter       *bufio.Writer //writer for  this connection
 	pReader       *bufio.Reader //reader for this connection
 	tInfo         TorrentInfo
+
+	queueLock *sync.Mutex
 
 	toPeerContact   chan<- bool //notifies peer contact manager if we unchoke a peer
 	fromPeerContact <-chan bool //gives us peermission to unchoke a peer
@@ -63,6 +67,8 @@ func NewConnectionManager(pieceManager *PieceManager, msgQueueMax int, out chan<
 
 	p.toPeerContact = out
 	p.fromPeerContact = in
+
+	p.queueLock = &sync.Mutex{}
 
 	var pkt Packet
 
@@ -138,13 +144,13 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
 		if msg, err = CreateMessage(INTERESTED, Payload{}); err != nil {
 			return err
 		}
-		fmt.Println("INTERESTED")
+
 		if err := t.packetHandler.SendArbitraryPacket(t.pWriter, msg); err != nil {
 			return err
 		}
 		t.status.ClientInterested = true
 	} else {
-		fmt.Println("NOT INTERESTED")
+
 		var msg []byte
 		var err error
 		if msg, err = CreateMessage(NOTINTERESTED, Payload{}); err != nil {
@@ -166,11 +172,12 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
 * returns: message to respond, error
  */
 func (t *ConnectionManager) ReceiveNextMessage() error {
-
+	fmt.Printf("WAITING %d\n", t.descriptor)
 	inMessage, err := t.packetHandler.ReceiveArbitraryPacket(t.pReader)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("GOT %d\n", t.descriptor)
 
 	switch inMessage.Mtype {
 	case KEEPALIVE:
@@ -181,7 +188,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		t.status.PeerChoked = true
 	case UNCHOKE:
 		//the peer has unchoked us
-		fmt.Println("UNCHOKED!!")
+
 		t.status.PeerChoked = false
 	case INTERESTED:
 		//peer is interested in downloading from us
@@ -254,7 +261,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 
 		} else {
 			//send a request message for that piece, put in queue
-
+			fmt.Printf("Connection %d, REQUEST PIECE %d\n", t.descriptor, reqPieceID)
 			if err := t.QueueMessage(REQUEST, Payload{pieceIndex: int32(reqPieceID), begin: 0, length: int32(t.tInfo.TInfo.PieceLength)}); err != nil {
 				return err
 			}
@@ -277,19 +284,26 @@ func (t *ConnectionManager) QueueMessage(mType MsgType, payload Payload) error {
 	if msg, err = CreateMessage(mType, payload); err != nil {
 		return err
 	}
+	t.queueLock.Lock()
 
 	t.msgQueue = append(t.msgQueue, msg)
+	t.queueLock.Unlock()
 	return nil
 
 }
 
 func (t *ConnectionManager) SendNextMessage() error {
+	//	time.Sleep(1)
+	t.queueLock.Lock()
 	if len(t.msgQueue) == 0 {
-		fmt.Println("no message left")
+		//fmt.Println("no message left")
+		t.queueLock.Unlock()
 		return nil
 	}
+
 	msg := t.msgQueue[0]
 	t.msgQueue = t.msgQueue[1:]
+	t.queueLock.Unlock()
 	return t.packetHandler.SendArbitraryPacket(t.pWriter, msg)
 }
 

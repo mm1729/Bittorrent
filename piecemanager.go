@@ -147,8 +147,9 @@ func (t *PieceManager) ComputeRequestQueue(connection int) bool {
 	t.manager[connection].requestQueue = make([]int, 0, t.maxQueueSize)
 	//we are not interested by default
 	interested := false
-
+	fmt.Printf("attempted %d\n", connection)
 	t.mutex.Lock()
+	fmt.Printf("got lock %d\n", connection)
 
 	//for all bytes in the peer field
 	for index, element := range t.manager[connection].peerField {
@@ -249,6 +250,7 @@ func (t *PieceManager) ReceivePiece(connection int, pieceIndex int32, piece []by
 * returns index
  */
 func (t *PieceManager) GetNextRequest(connection int) int {
+	fmt.Printf("%v\n", connection)
 	//if queue is empty
 	if len(t.manager[connection].requestQueue) == 0 {
 		//compute a new one if there is more to request
@@ -259,6 +261,7 @@ func (t *PieceManager) GetNextRequest(connection int) int {
 	//pop off queue
 	next := t.manager[connection].requestQueue[0]
 	t.manager[connection].requestQueue = t.manager[connection].requestQueue[1:]
+	fmt.Printf("conneciton %d, queue: %v\n", connection, t.manager[connection].requestQueue)
 	return next
 }
 

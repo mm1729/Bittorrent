@@ -80,9 +80,13 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		//start up the connection
 		manager.StartConnection(tcpConnection, peer, t.tInfo)
 		//loop receiving and sending messages
-		for {
+		go func() {
+			for {
 
-			manager.ReceiveNextMessage()
+				manager.ReceiveNextMessage()
+			}
+		}()
+		for {
 			manager.SendNextMessage()
 		}
 
