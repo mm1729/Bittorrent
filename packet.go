@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -23,7 +24,8 @@ type Packet int
 * returns: Message struct used to identify message read in, error
 * @see SendArbitraryPacket for sending a packet
  */
-func (t *Packet) ReceiveArbitraryPacket(pRead *bufio.Reader) (Message, error) {
+func (t *Packet) ReceiveArbitraryPacket(pRead *bufio.Reader, num int) (Message, error) {
+	fmt.Println("IN")
 	// read 1 bytes to find out length
 	msgLength := make([]byte, 4)
 	msgLength[0], _ = pRead.ReadByte()
@@ -33,8 +35,10 @@ func (t *Packet) ReceiveArbitraryPacket(pRead *bufio.Reader) (Message, error) {
 
 	var length int32
 	binary.Read(bytes.NewReader(msgLength), binary.BigEndian, &length)
+	fmt.Printf("%d: %d\n", length, num)
 
 	data, err := readPacket(int(length), pRead)
+	fmt.Printf("!OUT %d", num)
 	if err != nil {
 		return Message{}, err
 	}
@@ -153,6 +157,7 @@ func readPacket(length int, pRead *bufio.Reader) ([]byte, error) {
 	totalRead := 0
 	for totalRead < length {
 		nRead, err := pRead.Read(readData)
+		fmt.Printf("READ %d\n", nRead)
 		if err != nil {
 			return nil, errors.New("Could not read packet")
 		}

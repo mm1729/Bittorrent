@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	//`	"time"
+	//"time"
 )
 
 /*
@@ -129,7 +129,7 @@ func (t *ConnectionManager) sendBitFieldMessage() error {
  */
 func (t *ConnectionManager) receiveBitFieldMessage() error {
 	//register out connection with the piecemanager by giving it our peer's bitfield
-	inMessage, err := t.packetHandler.ReceiveArbitraryPacket(t.pReader)
+	inMessage, err := t.packetHandler.ReceiveArbitraryPacket(t.pReader, 0)
 	if err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
  */
 func (t *ConnectionManager) ReceiveNextMessage() error {
 	fmt.Printf("WAITING %d\n", t.descriptor)
-	inMessage, err := t.packetHandler.ReceiveArbitraryPacket(t.pReader)
+	inMessage, err := t.packetHandler.ReceiveArbitraryPacket(t.pReader, t.descriptor)
 	if err != nil {
 		return err
 	}
@@ -194,6 +194,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		//peer is interested in downloading from us
 		t.status.PeerInterested = true
 		//request permission to unchoke this peer
+		fmt.Printf("???")
 		t.toPeerContact <- true
 		if answer := <-t.fromPeerContact; answer == true {
 			t.status.ClientChoked = false
@@ -284,10 +285,12 @@ func (t *ConnectionManager) QueueMessage(mType MsgType, payload Payload) error {
 	if msg, err = CreateMessage(mType, payload); err != nil {
 		return err
 	}
+	fmt.Printf("LOCKING %d\n", t.descriptor)
 	t.queueLock.Lock()
 
 	t.msgQueue = append(t.msgQueue, msg)
 	t.queueLock.Unlock()
+	fmt.Printf("UNLOCK %d\n", t.descriptor)
 	return nil
 
 }
@@ -296,7 +299,8 @@ func (t *ConnectionManager) SendNextMessage() error {
 	//	time.Sleep(1)
 	t.queueLock.Lock()
 	if len(t.msgQueue) == 0 {
-		//fmt.Println("no message left")
+		//	time.Sleep(2)
+		//	fmt.Println("no message left")
 		t.queueLock.Unlock()
 		return nil
 	}

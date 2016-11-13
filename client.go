@@ -35,7 +35,7 @@ func main() {
 	// Tracker connection
 	tkInfo := NewTracker(hash, torrent, &iDict)
 	peerList, _ := tkInfo.Connect()
-	//fmt.Printf("%v\n", peerList)
+	fmt.Printf("%v\n", peerList)
 
 	//Start peer download
 	tInfo := TorrentInfo{

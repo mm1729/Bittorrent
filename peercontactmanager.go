@@ -94,7 +94,9 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 
 	for _, peerEntry := range peers {
 		// 1.) make TCP connection
+		fmt.Printf("ATTEMPTING %v\n", peerEntry.IP)
 		conn, err := net.Dial("tcp", peerEntry.IP+":"+strconv.FormatInt(peerEntry.Port, 10))
+		fmt.Printf("YES %v\n", peerEntry.IP)
 		if err != nil {
 			return err
 		}
