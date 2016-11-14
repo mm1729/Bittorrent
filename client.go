@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 )
 
@@ -45,8 +46,8 @@ func main() {
 		ProtoNameLen: len(ProtoName),
 		InfoHash:     string(hash[:len(hash)]),
 	}
-
-	manager := NewPeerContactManager(tInfo, fileName, 10, 10, 10)
+	var wg sync.WaitGroup
+	manager := NewPeerContactManager(&wg, tInfo, fileName, 10, 10, 10)
 	//	tkInfo.sendGetRequest("")
 	if err := manager.StartOutgoing(peerList); err != nil {
 		fmt.Println("ERROR!\n")

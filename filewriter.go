@@ -58,9 +58,12 @@ func (f *FileWriter) Write(data []byte, index int) error {
 	}
 
 	//check the sha1 hash
-	//if f.checkSHA1(data, index) == false {
-	//	return errors.New("Data SHA1 does not match piece SHA1\n")
-	//}
+	if f.checkSHA1(data, index) == false {
+		fmt.Println("NOMATCH")
+		return errors.New("Data SHA1 does not match piece SHA1\n")
+	} else {
+		fmt.Println("MATCHED")
+	}
 
 	_, err := f.DataFile.WriteAt(data, int64(index*f.Info.PieceLength))
 	//	fmt.Println(err)
@@ -72,9 +75,7 @@ func (f *FileWriter) checkSHA1(data []byte, index int) bool {
 	hash := sha1.New()
 	io.WriteString(hash, string(data))
 	dataHash := string(hash.Sum(nil))
-	pieceHash := f.Info.Pieces[index*20 : (index+1)*20+1]
-	fmt.Printf("%0.2x\n", dataHash)
-	fmt.Printf("%0.2x\n", pieceHash)
+	pieceHash := f.Info.Pieces[index*20 : (index+1)*20]
 	return strings.Compare(dataHash, pieceHash) == 0
 }
 

@@ -74,10 +74,14 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 	numBytes := math.Ceil(numPieces / 8)
 	//create the bitfield with max numBytes
 	p.bitField = make([]byte, int(numBytes), int(numBytes))
+	for i := 0; i < 63; i++ {
+		p.bitField[i] = 255
 
+	}
+	p.bitField[63] = 252
 	//pieces which peers have claimed responsbility
 	p.transitField = make([]byte, int(numBytes), int(numBytes))
-
+	fmt.Println(numBytes)
 	p.numConnections = 0
 	p.lastHaveIndex = 0
 	p.infoDict = tInfo
@@ -104,6 +108,7 @@ func (t *PieceManager) RegisterConnection(peerField []byte) int {
 	con.mostRecentHave = -1
 	con.peerField = make([]byte, cap(t.bitField), cap(t.bitField))
 	copy(con.peerField, peerField)
+	t.manager[conNum].requestQueue = make([]int, 0, t.maxQueueSize)
 	return conNum
 }
 
@@ -144,8 +149,14 @@ func (t *PieceManager) UpdatePeerField(connection int, pieceIndex int32) {
  returns: whether client is interested
 */
 func (t *PieceManager) ComputeRequestQueue(connection int) bool {
+	fmt.Println(t.manager[connection].requestQueue)
+	if len(t.manager[connection].requestQueue) != 0 {
+		fmt.Println("DDD")
+		return true
+	}
 	//construct the new request queue for the peer
 	t.manager[connection].requestQueue = make([]int, 0, t.maxQueueSize)
+
 	//we are not interested by default
 
 	interested := false
@@ -168,15 +179,16 @@ func (t *PieceManager) ComputeRequestQueue(connection int) bool {
 					//if can fit in queue, add them to the queue
 					if len(t.manager[connection].requestQueue) < t.maxQueueSize {
 						//add piece to request queue
+
 						t.manager[connection].requestQueue = append(t.manager[connection].requestQueue, index*8+int(num))
 						//a peer has claimed responsibility for this piece
 						t.transitField[index] |= 1 << (7 - num)
+
 					}
 				}
 				//if we can no longer fit pieces in the queue
 				if len(t.manager[connection].requestQueue) == t.maxQueueSize {
 					t.mutex.Unlock()
-					fmt.Printf("CONNECTION %d, QUEUE %v\n", connection, t.manager[connection].requestQueue)
 					return interested
 				}
 			}
@@ -184,6 +196,8 @@ func (t *PieceManager) ComputeRequestQueue(connection int) bool {
 		}
 
 	}
+	fmt.Printf("CONNECTION %d, QUEUE %v\n", connection, t.manager[connection].requestQueue)
+	fmt.Println("INTERESTED:", interested)
 	t.mutex.Unlock()
 
 	return interested
@@ -229,16 +243,22 @@ func (t *PieceManager) ReceivePiece(connection int, pieceIndex int32, piece []by
 	if t.bitField[index]&bit == 1 {
 		return errors.New("ReceivePiece: received piece we already have")
 	} else {
-		t.mutex.Lock()
-		//we now have  the piece
-		t.bitField[index] |= bit
-		t.mutex.Unlock()
 
 		err := t.fileWriter.Write(piece, int(pieceIndex))
 
 		if err != nil {
-			return errors.New("ReceivePiece: failed to write file")
+			t.mutex.Lock()
+			t.bitField[index] &= ^bit
+			t.mutex.Unlock()
+			fmt.Printf("%v\n", err)
+
+		} else {
+			t.mutex.Lock()
+			//we now have  the piece
+			t.bitField[index] |= bit
+			t.mutex.Unlock()
 		}
+		return err
 
 	}
 	return nil
@@ -251,7 +271,7 @@ func (t *PieceManager) ReceivePiece(connection int, pieceIndex int32, piece []by
 * returns index
  */
 func (t *PieceManager) GetNextRequest(connection int) int {
-
+	fmt.Println(t.manager[connection].requestQueue)
 	//if queue is empty
 	if len(t.manager[connection].requestQueue) == 0 {
 		//compute a new one if there is more to request

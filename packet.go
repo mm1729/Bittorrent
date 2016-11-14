@@ -162,7 +162,7 @@ func readPacket(length int, pRead *bufio.Reader) ([]byte, error) {
 		if err != nil {
 			return nil, errors.New("Could not read packet")
 		}
-		data = append(data[:totalRead], readData...)
+		data = append(data[:totalRead], readData[:nRead]...)
 		totalRead += nRead
 	}
 	return data, nil
