@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
+	//	"time"
 )
 
 /*
@@ -304,7 +304,7 @@ func (t *ConnectionManager) SendNextMessage() error {
 		t.queueLock.Unlock()
 		return nil
 	}
-	time.Sleep(10000000)
+
 	msg := t.msgQueue[0]
 	t.msgQueue = t.msgQueue[1:]
 	t.queueLock.Unlock()

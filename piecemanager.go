@@ -251,7 +251,7 @@ func (t *PieceManager) ReceivePiece(connection int, pieceIndex int32, piece []by
 * returns index
  */
 func (t *PieceManager) GetNextRequest(connection int) int {
-	fmt.Printf("%v\n", connection)
+
 	//if queue is empty
 	if len(t.manager[connection].requestQueue) == 0 {
 		//compute a new one if there is more to request

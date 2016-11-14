@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
+	//	"fmt"
 	"strings"
 )
 
@@ -44,7 +44,7 @@ func (t *Packet) ReceiveArbitraryPacket(pRead *bufio.Reader, num int) (Message, 
 	data = append(msgLength, data...)
 	//form message struct
 	msg, err := NewMessage(data)
-	fmt.Printf("RECEIVED MSG %d\n", msg.Mtype)
+
 	return msg, err
 }
 
@@ -55,7 +55,7 @@ func (t *Packet) ReceiveArbitraryPacket(pRead *bufio.Reader, num int) (Message, 
 * @see: ReadArbitraryPacket for how to read in a packet
  */
 func (t *Packet) SendArbitraryPacket(pWrite *bufio.Writer, packet []byte) error {
-	fmt.Printf("SENDING %v\n", packet)
+
 	//write it out to socket
 	return bufferWrite(pWrite, packet)
 }
@@ -186,7 +186,7 @@ func bufferWrite(pWriter *bufio.Writer, data []byte) error {
 	} else if err = pWriter.Flush(); err != nil {
 		return errors.New("bufferWrite: could not flush bytes")
 	}
-	fmt.Println("SENT")
+
 	return nil
 
 }

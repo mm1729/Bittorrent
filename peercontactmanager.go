@@ -52,7 +52,7 @@ func NewPeerContactManager(tInfo TorrentInfo, fileName string, maxConnections ui
 
 	p.tInfo = tInfo
 	//global manager for pieces we have and need
-	p.pieceManager = NewPieceManager(tInfo.TInfo, 510, fileName)
+	p.pieceManager = NewPieceManager(tInfo.TInfo, 10, fileName)
 	//number of peers allowed to be connected to simultaneously
 	p.maxConnections = maxConnections
 	//number of peers we are allowed to unchoke
@@ -111,7 +111,6 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		}
 		//spawn routine to handle connection
 		go handler(conn, peerEntry)
-		break
 
 	}
 
