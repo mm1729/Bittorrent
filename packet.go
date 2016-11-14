@@ -186,7 +186,7 @@ func bufferWrite(pWriter *bufio.Writer, data []byte) error {
 	} else if err = pWriter.Flush(); err != nil {
 		return errors.New("bufferWrite: could not flush bytes")
 	}
-
+	fmt.Println("SENT")
 	return nil
 
 }

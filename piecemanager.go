@@ -74,8 +74,7 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 	numBytes := math.Ceil(numPieces / 8)
 	//create the bitfield with max numBytes
 	p.bitField = make([]byte, int(numBytes), int(numBytes))
-	p.bitField[0] = 255
-	p.bitField[1] = 255
+
 	//pieces which peers have claimed responsbility
 	p.transitField = make([]byte, int(numBytes), int(numBytes))
 

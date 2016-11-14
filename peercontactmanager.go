@@ -80,25 +80,23 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		//start up the connection
 		manager.StartConnection(tcpConnection, peer, t.tInfo)
 		//loop receiving and sending messages
-		/*	go func() {
-			i := 0
+		//send loop ( this might possibly speed things up
+		go func() {
 			for {
-				fmt.Println(i)
-				manager.SendNextMessage()
-				time.Sleep(1000000000)
-				i += 1
+				err := manager.SendNextMessage()
+				if err != nil {
+					return
+				}
 			}
-		}()*/
+		}()
+		//receive loop
 		for {
 			err := manager.ReceiveNextMessage()
 			if err != nil {
-				fmt.Printf("%v\n", err)
+
 				return
 			}
-			err = manager.SendNextMessage()
-			if err != nil {
-				fmt.Printf("%v\n", err)
-			}
+
 		}
 
 	}
@@ -119,6 +117,10 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 
 	return nil
 
+}
+
+func (t *PeerContactManager) GetProgress() (int, int, int) {
+	return t.pieceManager.GetProgress()
 }
 
 /*
