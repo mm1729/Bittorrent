@@ -63,7 +63,7 @@ func (f *FileWriter) Write(data []byte, index int) error {
 	//}
 
 	_, err := f.DataFile.WriteAt(data, int64(index*f.Info.PieceLength))
-	fmt.Println(err)
+	//	fmt.Println(err)
 	return err
 }
 
