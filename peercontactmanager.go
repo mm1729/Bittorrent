@@ -15,7 +15,7 @@ import (
 	"net"
 	"strconv"
 	//"strings"
-	//"time"
+	//	"time"
 )
 
 //TorrentInfo used to consolidate space, not the same as InfoDict
@@ -80,21 +80,32 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		//start up the connection
 		manager.StartConnection(tcpConnection, peer, t.tInfo)
 		//loop receiving and sending messages
+		//send loop ( this might possibly speed things up
 		go func() {
 			for {
-
-				manager.ReceiveNextMessage()
+				err := manager.SendNextMessage()
+				if err != nil {
+					return
+				}
 			}
 		}()
+		//receive loop
 		for {
-			manager.SendNextMessage()
+			err := manager.ReceiveNextMessage()
+			if err != nil {
+
+				return
+			}
+
 		}
 
 	}
 
 	for _, peerEntry := range peers {
 		// 1.) make TCP connection
+
 		conn, err := net.Dial("tcp", peerEntry.IP+":"+strconv.FormatInt(peerEntry.Port, 10))
+
 		if err != nil {
 			return err
 		}
@@ -105,6 +116,10 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 
 	return nil
 
+}
+
+func (t *PeerContactManager) GetProgress() (int, int, int) {
+	return t.pieceManager.GetProgress()
 }
 
 /*
