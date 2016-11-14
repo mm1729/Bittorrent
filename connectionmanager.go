@@ -174,24 +174,28 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
 func (t *ConnectionManager) ReceiveNextMessage() error {
 
 	inMessage, err := t.packetHandler.ReceiveArbitraryPacket(t.pReader, t.descriptor)
+	//fmt.Printf("%v\n", inMessage)
 	if err != nil {
 		return err
 	}
 
 	switch inMessage.Mtype {
 	case KEEPALIVE:
+		return nil
 		//implement
 		//clock how much time has gone by, then push a keepalive in
 	case CHOKE:
-
+		fmt.Println("WTF!")
 		//the peer has choked us
 		t.status.PeerChoked = true
 	case UNCHOKE:
+		fmt.Println("WTF2")
 
 		//the peer has unchoked us
 
 		t.status.PeerChoked = false
 	case INTERESTED:
+		fmt.Println("WWWW")
 		//peer is interested in downloading from us
 		t.status.PeerInterested = true
 		//request permission to unchoke this peer
@@ -255,11 +259,13 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 	if t.status.ClientInterested == true && t.status.PeerChoked == false {
 		//get next piece to download
 		reqPieceID := t.pieceManager.GetNextRequest(t.descriptor)
+		fmt.Println(reqPieceID)
 		if reqPieceID == -1 {
-
+			fmt.Printf("CONNECT %d, NOT\n", t.descriptor)
 			if err := t.QueueMessage(NOTINTERESTED, Payload{}); err != nil {
 				return err
 			}
+			t.status.ClientInterested = false
 
 		} else {
 			//send a request message for that piece, put in queue

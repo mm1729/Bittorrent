@@ -14,6 +14,7 @@ import (
 	//"log"
 	"net"
 	"strconv"
+	"sync"
 	//"strings"
 	//	"time"
 )
@@ -37,6 +38,7 @@ type PeerContactManager struct {
 	in             chan bool
 	out            chan bool
 	msgQueueMax    int //maxmimum number of pieces queue up for a peer
+	wg             *sync.WaitGroup
 }
 
 /*
@@ -47,12 +49,12 @@ NewPeerDownloader create a new peerdownloader
 * @maxUnchoked: maximum number of peers we can unchoke at once
 * returns: new PeerDownloader
 */
-func NewPeerContactManager(tInfo TorrentInfo, fileName string, maxConnections uint32, maxUnchoked uint32, maxMsgQueue int) PeerContactManager {
+func NewPeerContactManager(wg *sync.WaitGroup, tInfo TorrentInfo, fileName string, maxConnections uint32, maxUnchoked uint32, maxMsgQueue int) PeerContactManager {
 	var p PeerContactManager
-
+	p.wg = wg
 	p.tInfo = tInfo
 	//global manager for pieces we have and need
-	p.pieceManager = NewPieceManager(tInfo.TInfo, 10, fileName)
+	p.pieceManager = NewPieceManager(tInfo.TInfo, 5, fileName)
 	//number of peers allowed to be connected to simultaneously
 	p.maxConnections = maxConnections
 	//number of peers we are allowed to unchoke
@@ -81,21 +83,28 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		manager.StartConnection(tcpConnection, peer, t.tInfo)
 		//loop receiving and sending messages
 		//send loop ( this might possibly speed things up
-		go func() {
+		var wg1 sync.WaitGroup
+		wg1.Add(1)
+		go func(wg *sync.WaitGroup) {
 			for {
 				err := manager.SendNextMessage()
 				if err != nil {
+					wg.Done()
 					return
 				}
 			}
-		}()
+		}(&wg1)
 		//receive loop
 		for {
 			err := manager.ReceiveNextMessage()
 			if err != nil {
-
+				t.wg.Done()
 				return
-			}
+			} /*
+				err = manager.SendNextMessage()
+				if err != nil {
+					return
+				}*/
 
 		}
 
@@ -110,9 +119,11 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 			return err
 		}
 		//spawn routine to handle connection
+		t.wg.Add(1)
 		go handler(conn, peerEntry)
 
 	}
+	t.wg.Wait()
 
 	return nil
 
