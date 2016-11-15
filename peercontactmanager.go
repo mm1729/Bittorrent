@@ -139,5 +139,25 @@ func (t *PeerContactManager) GetProgress() (int, int, int) {
 * returns error
  */
 func (t *PeerContactManager) StartIncoming(port uint32) error {
+	// listen on all network interfaces on port input
+	ln, err := net.Listen("tcp", ":"+strconv.Itoa(int(port)))
+	fmt.Printf("%v\n", ln)
+	if err != nil {
+		return err
+	}
+	defer ln.Close()
+
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			return err
+		}
+
+		go t.incomingHandler(conn)
+	}
 	return nil
+}
+
+func (t *PeerContactManager) incomingHandler(conn net.Conn) {
+	fmt.Println(conn.LocalAddr().String(), " Got connection from ", conn.RemoteAddr().String())
 }

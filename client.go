@@ -15,6 +15,8 @@ var ClientID = "DONDESTALABIBLIOTECA"
 //ProtoName is the BitTorrent protocol we are using
 var ProtoName = "BitTorrent protocol"
 
+const ListenPort = 6881
+
 func main() {
 	runtime.GOMAXPROCS(2)
 	if len(os.Args) < 3 {
@@ -34,7 +36,7 @@ func main() {
 	iDict := torrent.InfoDict()
 
 	// Tracker connection
-	tkInfo := NewTracker(hash, torrent, &iDict)
+	tkInfo := NewTracker(hash, torrent, &iDict, ListenPort)
 	peerList, interval := tkInfo.Connect()
 	fmt.Printf("%v\n", peerList)
 
@@ -48,6 +50,16 @@ func main() {
 	}
 	var wg sync.WaitGroup
 	manager := NewPeerContactManager(&wg, tInfo, fileName, 10, 10, 10)
+
+	// start listening for requests
+	go func() {
+		if err := manager.StartIncoming(ListenPort); err != nil {
+			fmt.Println("Listen Error\n")
+			fmt.Println(err)
+			return
+		}
+	}()
+
 	//	tkInfo.sendGetRequest("")
 	if err := manager.StartOutgoing(peerList); err != nil {
 		fmt.Println("ERROR!\n")

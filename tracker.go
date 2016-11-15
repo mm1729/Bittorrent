@@ -38,7 +38,7 @@ type Peer struct {
 }
 
 //NewTracker initializes a new tracker CONNECTION and takes a byte array of the info hash
-func NewTracker(hash []byte, tInfo *Torrent, iDict *InfoDict) (trkInfo TrackerInfo) {
+func NewTracker(hash []byte, tInfo *Torrent, iDict *InfoDict, port int) (trkInfo TrackerInfo) {
 	hexStr := []rune(hex.EncodeToString(hash))
 	urlHash := ""
 
@@ -46,7 +46,7 @@ func NewTracker(hash []byte, tInfo *Torrent, iDict *InfoDict) (trkInfo TrackerIn
 		urlHash += "%" + string(hexStr[i]) + string(hexStr[i+1])
 	}
 
-	trkInfo.urlStub = tInfo.Announce + "?info_hash=" + urlHash + "&peer_id=DONDESTALABIBLIOTECA&port=6881"
+	trkInfo.urlStub = tInfo.Announce + "?info_hash=" + urlHash + "&peer_id=DONDESTALABIBLIOTECA&port=" + strconv.Itoa(port)
 	trkInfo.Uploaded, trkInfo.Downloaded, trkInfo.Left = 0, 0, iDict.Length
 	return
 }
