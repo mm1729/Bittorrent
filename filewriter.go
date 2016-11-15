@@ -3,7 +3,7 @@ package main
 import (
 	"crypto/sha1"
 	"errors"
-	"fmt"
+	//	"fmt"
 	"io"
 	"log"
 	"os"
@@ -59,10 +59,10 @@ func (f *FileWriter) Write(data []byte, index int) error {
 
 	//check the sha1 hash
 	if f.checkSHA1(data, index) == false {
-		fmt.Println("NOMATCH")
+		//	fmt.Println("NOMATCH")
 		return errors.New("Data SHA1 does not match piece SHA1\n")
 	} else {
-		fmt.Println("MATCHED")
+		//	fmt.Println("MATCHED")
 	}
 
 	_, err := f.DataFile.WriteAt(data, int64(index*f.Info.PieceLength))

@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	//	"time"
+	"time"
 )
 
 /*
@@ -47,6 +47,8 @@ type ConnectionManager struct {
 
 	lastPieceRequest int
 	mutex            *sync.Mutex
+
+	flushChan chan bool
 }
 
 /*
@@ -98,7 +100,16 @@ func (t *ConnectionManager) StopConnection() {
 * @tInfo: torent file information struct
 * returns: error
  */
-func (t *ConnectionManager) StartConnection(conn net.Conn, peer Peer, tInfo TorrentInfo, timeout int) error {
+func (t *ConnectionManager) StartConnection(conn net.Conn, peer Peer, tInfo TorrentInfo, timeout int, interval int) error {
+
+	ticker := time.NewTicker(time.Second * time.Duration(interval))
+	t.flushChan = make(chan bool)
+	go func(flushChan chan bool) {
+
+		for _ = range ticker.C {
+			t.flushChan <- true
+		}
+	}(t.flushChan)
 
 	t.pWriter = bufio.NewWriter(conn)
 	t.pReader = bufio.NewReader(conn)
@@ -243,7 +254,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		t.lastPieceRequest = -1
 		t.mutex.Unlock()
 		//return HAVE MESSAGE to all peers
-		t.pieceManager.CreateHaveBroadcast(inMessage.Payload.pieceIndex)
+		t.pieceManager.CreateHaveBroadcast(t.descriptor, inMessage.Payload.pieceIndex)
 
 	case REQUEST:
 		//a peer has requested a piece
@@ -281,12 +292,12 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 	if t.status.ClientInterested == true && t.status.PeerChoked == false {
 		//get next piece to download
 		reqPieceID := t.pieceManager.GetNextRequest(t.descriptor)
-		fmt.Println(reqPieceID)
+		//	fmt.Println(reqPieceID)
 		t.mutex.Lock()
 		t.lastPieceRequest = reqPieceID
 		t.mutex.Unlock()
 		if reqPieceID == -1 {
-			fmt.Printf("CONNECT %d, NOT\n", t.descriptor)
+			//	fmt.Printf("CONNECT %d, NOT\n", t.descriptor)
 			if err := t.QueueMessage(NOTINTERESTED, Payload{}); err != nil {
 				return err
 			}
@@ -301,13 +312,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 
 		}
 	}
-	//check if there are any have broadcasts
-	if index := t.pieceManager.GetNextHaveBroadcast(t.descriptor); index != -1 {
 
-		if err := t.QueueMessage(HAVE, Payload{pieceIndex: int32(index)}); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -328,7 +333,21 @@ func (t *ConnectionManager) QueueMessage(mType MsgType, payload Payload) error {
 }
 
 func (t *ConnectionManager) SendNextMessage() error {
+	//check if there are any have broadcasts
 
+	select {
+
+	case <-t.flushChan:
+		channels := t.pieceManager.GetNextHaveBroadcast(t.descriptor)
+		close(channels)
+		for index := range channels {
+			if err := t.QueueMessage(HAVE, Payload{pieceIndex: int32(index)}); err != nil {
+				return err
+			}
+
+		}
+	default:
+	}
 	t.queueLock.Lock()
 	if len(t.msgQueue) == 0 {
 
