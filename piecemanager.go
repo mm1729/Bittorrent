@@ -74,11 +74,11 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 	numBytes := math.Ceil(numPieces / 8)
 	//create the bitfield with max numBytes
 	p.bitField = make([]byte, int(numBytes), int(numBytes))
-	for i := 0; i < 63; i++ {
+	/*for i := 0; i < 63; i++ {
 		p.bitField[i] = 255
 
 	}
-	p.bitField[63] = 252
+	p.bitField[63] = 252*/
 	//pieces which peers have claimed responsbility
 	p.transitField = make([]byte, int(numBytes), int(numBytes))
 	fmt.Println(numBytes)
@@ -112,13 +112,19 @@ func (t *PieceManager) RegisterConnection(peerField []byte) int {
 	return conNum
 }
 
-func (t *PieceManager) UnregisterConnection(connection int) {
+func (t *PieceManager) UnregisterConnection(connection int, lastPieceRequest int) {
+	t.mutex.Lock()
 	for _, index := range t.manager[connection].requestQueue {
 		byteIndex := index / 8
 		offset := uint32(index % 8)
 
-		t.transitField[byteIndex] &= (0 << (7 - offset))
+		t.transitField[byteIndex] &= ^(1 << (7 - offset))
 	}
+	if lastPieceRequest != -1 {
+		t.transitField[lastPieceRequest/8] &= ^(1 << (7 - uint32(lastPieceRequest%8)))
+	}
+
+	t.mutex.Unlock()
 }
 
 /**
@@ -151,7 +157,7 @@ func (t *PieceManager) UpdatePeerField(connection int, pieceIndex int32) {
 func (t *PieceManager) ComputeRequestQueue(connection int) bool {
 	fmt.Println(t.manager[connection].requestQueue)
 	if len(t.manager[connection].requestQueue) != 0 {
-		fmt.Println("DDD")
+
 		return true
 	}
 	//construct the new request queue for the peer
@@ -197,7 +203,7 @@ func (t *PieceManager) ComputeRequestQueue(connection int) bool {
 
 	}
 	fmt.Printf("CONNECTION %d, QUEUE %v\n", connection, t.manager[connection].requestQueue)
-	fmt.Println("INTERESTED:", interested)
+
 	t.mutex.Unlock()
 
 	return interested
