@@ -14,19 +14,14 @@ import (
 	//"os"
 )
 
-type HaveBroadcast struct {
-	pieceIndex int32
-	notSeenBy  int
-}
-
 /*
 * manages pieces for a single peer connection
  */
 type ConnectionPieceManager struct {
-	requestQueue   []int  //holds the next pieces to request
-	peerField      []byte //pieces the peer has
-	mostRecentHave int64  //last seen have message
+	requestQueue []int  //holds the next pieces to request
+	peerField    []byte //pieces the peer has
 
+	haveBroadcastQueue chan int32 //used to receive a have broadcast
 }
 
 /*
@@ -46,10 +41,8 @@ type PieceManager struct {
 	fileWriter *FileWriter
 	infoDict   *InfoDict
 
-	haveQueue     []HaveBroadcast //broadcast which pieces we havei
-	lastHaveIndex uint64
-
-	mutex *sync.Mutex
+	mutex        *sync.Mutex
+	managerMutex *sync.Mutex
 }
 
 /*
@@ -81,12 +74,14 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 	p.bitField[63] = 252*/
 	//pieces which peers have claimed responsbility
 	p.transitField = make([]byte, int(numBytes), int(numBytes))
-	fmt.Println(numBytes)
+
 	p.numConnections = 0
-	p.lastHaveIndex = 0
+
 	p.infoDict = tInfo
 
 	p.mutex = &sync.Mutex{}
+
+	p.managerMutex = &sync.Mutex{}
 
 	return p
 }
@@ -105,10 +100,12 @@ func (t *PieceManager) RegisterConnection(peerField []byte) int {
 
 	var con ConnectionPieceManager
 	t.manager = append(t.manager, &con)
-	con.mostRecentHave = -1
+
 	con.peerField = make([]byte, cap(t.bitField), cap(t.bitField))
 	copy(con.peerField, peerField)
 	t.manager[conNum].requestQueue = make([]int, 0, t.maxQueueSize)
+	//used to receive have broadcasts
+	t.manager[conNum].haveBroadcastQueue = make(chan int32, cap(t.bitField)*8)
 	return conNum
 }
 
@@ -155,7 +152,7 @@ func (t *PieceManager) UpdatePeerField(connection int, pieceIndex int32) {
  returns: whether client is interested
 */
 func (t *PieceManager) ComputeRequestQueue(connection int) bool {
-	fmt.Println(t.manager[connection].requestQueue)
+	//	fmt.Println(t.manager[connection].requestQueue)
 	if len(t.manager[connection].requestQueue) != 0 {
 
 		return true
@@ -202,7 +199,7 @@ func (t *PieceManager) ComputeRequestQueue(connection int) bool {
 		}
 
 	}
-	fmt.Printf("CONNECTION %d, QUEUE %v\n", connection, t.manager[connection].requestQueue)
+	//	fmt.Printf("CONNECTION %d, QUEUE %v\n", connection, t.manager[connection].requestQueue)
 
 	t.mutex.Unlock()
 
@@ -256,7 +253,7 @@ func (t *PieceManager) ReceivePiece(connection int, pieceIndex int32, piece []by
 			t.mutex.Lock()
 			t.bitField[index] &= ^bit
 			t.mutex.Unlock()
-			fmt.Printf("%v\n", err)
+			//	fmt.Printf("%v\n", err)
 
 		} else {
 			t.mutex.Lock()
@@ -277,14 +274,16 @@ func (t *PieceManager) ReceivePiece(connection int, pieceIndex int32, piece []by
 * returns index
  */
 func (t *PieceManager) GetNextRequest(connection int) int {
-	fmt.Println(t.manager[connection].requestQueue)
+	//	fmt.Println(t.manager[connection].requestQueue)
 	//if queue is empty
+
 	if len(t.manager[connection].requestQueue) == 0 {
 		//compute a new one if there is more to request
 		if val := t.ComputeRequestQueue(connection); val == false {
 			return -1
 		}
 	}
+	fmt.Println(t.manager[connection].requestQueue)
 	//pop off queue
 	next := t.manager[connection].requestQueue[0]
 	t.manager[connection].requestQueue = t.manager[connection].requestQueue[1:]
@@ -297,7 +296,8 @@ func (t *PieceManager) GetNextRequest(connection int) int {
 * @connection: connection descriptor for the calling peer
 * returns: the index of the piece broadcasted
  */
-func (t *PieceManager) GetNextHaveBroadcast(connection int) int {
+func (t *PieceManager) GetNextHaveBroadcast(connection int) chan int32 {
+
 	/*//lock
 	lastSeen := t.manager[connection].mostRecentHave
 	if len(t.haveQueue) != 0 {
@@ -313,7 +313,17 @@ func (t *PieceManager) GetNextHaveBroadcast(connection int) int {
 			}
 		}
 	}*/
-	return -1
+	curLen := len(t.manager[connection].haveBroadcastQueue)
+	subChan := make(chan int32, curLen)
+	for i := 0; i < curLen; i++ {
+		select {
+		case have := <-t.manager[connection].haveBroadcastQueue:
+			fmt.Println("Got have:", connection, "piece:", have)
+			subChan <- have
+		default:
+		}
+	}
+	return subChan
 	//unlock
 
 }
@@ -322,7 +332,21 @@ func (t *PieceManager) GetNextHaveBroadcast(connection int) int {
 * creates a have broadcast to all connected peers when we get a new piece
 * @pieceIndex: index to broadcast a notification of
  */
-func (t *PieceManager) CreateHaveBroadcast(pieceIndex int32) {
+func (t *PieceManager) CreateHaveBroadcast(connection int, pieceIndex int32) {
+
+	t.managerMutex.Lock()
+	for index, element := range t.manager {
+		if index == connection {
+			continue
+		}
+		//	fmt.Println("IN", connection)
+		fmt.Println("connection", index, "LEN", len(element.haveBroadcastQueue))
+		element.haveBroadcastQueue <- pieceIndex
+
+		//	fmt.Println("OUT", connection)
+	}
+	t.managerMutex.Unlock()
+
 	/*
 		//lock
 		var h HaveBroadcast

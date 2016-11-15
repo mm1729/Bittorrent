@@ -54,7 +54,7 @@ func NewPeerContactManager(wg *sync.WaitGroup, tInfo TorrentInfo, fileName strin
 	p.wg = wg
 	p.tInfo = tInfo
 	//global manager for pieces we have and need
-	p.pieceManager = NewPieceManager(tInfo.TInfo, 5, fileName)
+	p.pieceManager = NewPieceManager(tInfo.TInfo, 10, fileName)
 	//number of peers allowed to be connected to simultaneously
 	p.maxConnections = maxConnections
 	//number of peers we are allowed to unchoke
@@ -80,7 +80,7 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		//open up a new connection manager
 		manager := NewConnectionManager(&t.pieceManager, t.msgQueueMax, t.in, t.out)
 		//start up the connection
-		manager.StartConnection(tcpConnection, peer, t.tInfo, 5)
+		manager.StartConnection(tcpConnection, peer, t.tInfo, 120, 2)
 		//loop receiving and sending messages
 		//send loop ( this might possibly speed things up
 
@@ -128,7 +128,7 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		}
 
 	}
-
+	i := 0
 	for _, peerEntry := range peers {
 		// 1.) make TCP connection
 
@@ -140,6 +140,10 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		//spawn routine to handle connection
 		t.wg.Add(1)
 		go handler(conn, peerEntry)
+		i++
+		if i == 2 {
+			//	break
+		}
 
 	}
 	t.wg.Wait()
