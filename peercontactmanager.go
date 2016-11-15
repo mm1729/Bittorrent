@@ -80,32 +80,51 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		//open up a new connection manager
 		manager := NewConnectionManager(&t.pieceManager, t.msgQueueMax, t.in, t.out)
 		//start up the connection
-		manager.StartConnection(tcpConnection, peer, t.tInfo)
+		manager.StartConnection(tcpConnection, peer, t.tInfo, 5)
 		//loop receiving and sending messages
 		//send loop ( this might possibly speed things up
-		var wg1 sync.WaitGroup
-		wg1.Add(1)
-		go func(wg *sync.WaitGroup) {
+
+		errChan := make(chan error)
+		go func(errChan chan error) {
 			for {
 				err := manager.SendNextMessage()
 				if err != nil {
-					wg.Done()
+
+					errChan <- err
+
 					return
 				}
+
+				select {
+				case <-errChan:
+
+					return
+				default:
+				}
+
 			}
-		}(&wg1)
+		}(errChan)
 		//receive loop
 		for {
 			err := manager.ReceiveNextMessage()
 			if err != nil {
+
+				errChan <- err
+				manager.StopConnection()
 				t.wg.Done()
 				return
-			} /*
-				err = manager.SendNextMessage()
-				if err != nil {
-					return
-				}*/
 
+			}
+
+			select {
+
+			case <-errChan:
+				tcpConnection.Close()
+				manager.StopConnection()
+				t.wg.Done()
+				return
+			default:
+			}
 		}
 
 	}

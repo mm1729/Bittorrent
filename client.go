@@ -77,9 +77,6 @@ func main() {
 			tkInfo.sendGetRequest("")
 		}
 	}()
-	for {
-	}
-
 	ticker.Stop() // ticker is done
 	// Send event stopped message to tracker
 	tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left = manager.GetProgress()

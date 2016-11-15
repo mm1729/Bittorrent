@@ -6,7 +6,9 @@ import (
 	"encoding/binary"
 	"errors"
 	//	"fmt"
+	"net"
 	"strings"
+	"time"
 )
 
 type PacketHandler interface {
@@ -24,14 +26,36 @@ type Packet int
 * returns: Message struct used to identify message read in, error
 * @see SendArbitraryPacket for sending a packet
  */
-func (t *Packet) ReceiveArbitraryPacket(pRead *bufio.Reader, num int) (Message, error) {
+func (t *Packet) ReceiveArbitraryPacket(pRead *bufio.Reader, timeout int, conn net.Conn) (Message, error) {
 
 	// read 1 bytes to find out length
 	msgLength := make([]byte, 4)
-	msgLength[0], _ = pRead.ReadByte()
-	msgLength[1], _ = pRead.ReadByte()
-	msgLength[2], _ = pRead.ReadByte()
-	msgLength[3], _ = pRead.ReadByte()
+	var err error
+
+	conn.SetReadDeadline(time.Now().Add(time.Duration(timeout) * time.Second))
+
+	msgLength[0], err = pRead.ReadByte()
+	if err != nil {
+		return Message{}, err
+	}
+
+	conn.SetReadDeadline(time.Now().Add(time.Duration(timeout) * time.Second))
+	msgLength[1], err = pRead.ReadByte()
+
+	if err != nil {
+
+		return Message{}, err
+	}
+	conn.SetReadDeadline(time.Now().Add(time.Duration(timeout) * time.Second))
+	msgLength[2], err = pRead.ReadByte()
+	if err != nil {
+		return Message{}, err
+	}
+	conn.SetReadDeadline(time.Now().Add(time.Duration(timeout) * time.Second))
+	msgLength[3], err = pRead.ReadByte()
+	if err != nil {
+		return Message{}, err
+	}
 
 	var length int32
 	binary.Read(bytes.NewReader(msgLength), binary.BigEndian, &length)

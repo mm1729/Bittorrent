@@ -41,6 +41,12 @@ type ConnectionManager struct {
 
 	toPeerContact   chan<- bool //notifies peer contact manager if we unchoke a peer
 	fromPeerContact <-chan bool //gives us peermission to unchoke a peer
+
+	timeout int
+	conn    net.Conn
+
+	lastPieceRequest int
+	mutex            *sync.Mutex
 }
 
 /*
@@ -69,11 +75,20 @@ func NewConnectionManager(pieceManager *PieceManager, msgQueueMax int, out chan<
 	p.fromPeerContact = in
 
 	p.queueLock = &sync.Mutex{}
+	p.mutex = &sync.Mutex{} // lock for lastrequest piece
 
 	var pkt Packet
 
 	p.packetHandler = &pkt
+
+	p.lastPieceRequest = -1
 	return p
+}
+
+func (t *ConnectionManager) StopConnection() {
+	t.mutex.Lock()
+	t.pieceManager.UnregisterConnection(t.descriptor, t.lastPieceRequest)
+	t.mutex.Unlock()
 }
 
 /*
@@ -83,11 +98,13 @@ func NewConnectionManager(pieceManager *PieceManager, msgQueueMax int, out chan<
 * @tInfo: torent file information struct
 * returns: error
  */
-func (t *ConnectionManager) StartConnection(conn net.Conn, peer Peer, tInfo TorrentInfo) error {
+func (t *ConnectionManager) StartConnection(conn net.Conn, peer Peer, tInfo TorrentInfo, timeout int) error {
 
 	t.pWriter = bufio.NewWriter(conn)
 	t.pReader = bufio.NewReader(conn)
 	t.tInfo = tInfo
+	t.timeout = timeout
+	t.conn = conn
 
 	if err := t.packetHandler.SendHandshakePacket(t.pWriter, tInfo); err != nil {
 		return err
@@ -129,8 +146,10 @@ func (t *ConnectionManager) sendBitFieldMessage() error {
  */
 func (t *ConnectionManager) receiveBitFieldMessage() error {
 	//register out connection with the piecemanager by giving it our peer's bitfield
-	inMessage, err := t.packetHandler.ReceiveArbitraryPacket(t.pReader, 0)
+	inMessage, err := t.packetHandler.ReceiveArbitraryPacket(t.pReader, t.timeout, t.conn)
+
 	if err != nil {
+
 		return err
 	}
 
@@ -173,9 +192,10 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
  */
 func (t *ConnectionManager) ReceiveNextMessage() error {
 
-	inMessage, err := t.packetHandler.ReceiveArbitraryPacket(t.pReader, t.descriptor)
-	//fmt.Printf("%v\n", inMessage)
+	inMessage, err := t.packetHandler.ReceiveArbitraryPacket(t.pReader, t.timeout, t.conn)
+
 	if err != nil {
+
 		return err
 	}
 
@@ -185,17 +205,16 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		//implement
 		//clock how much time has gone by, then push a keepalive in
 	case CHOKE:
-		fmt.Println("WTF!")
+
 		//the peer has choked us
 		t.status.PeerChoked = true
 	case UNCHOKE:
-		fmt.Println("WTF2")
 
 		//the peer has unchoked us
 
 		t.status.PeerChoked = false
 	case INTERESTED:
-		fmt.Println("WWWW")
+
 		//peer is interested in downloading from us
 		t.status.PeerInterested = true
 		//request permission to unchoke this peer
@@ -220,6 +239,9 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		fmt.Printf("CONNECTION %d: PIECE %d\n", t.descriptor, inMessage.Payload.pieceIndex)
 		//received a piece from peer
 		t.pieceManager.ReceivePiece(t.descriptor, inMessage.Payload.pieceIndex, inMessage.Payload.block)
+		t.mutex.Lock()
+		t.lastPieceRequest = -1
+		t.mutex.Unlock()
 		//return HAVE MESSAGE to all peers
 		t.pieceManager.CreateHaveBroadcast(inMessage.Payload.pieceIndex)
 
@@ -260,6 +282,9 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		//get next piece to download
 		reqPieceID := t.pieceManager.GetNextRequest(t.descriptor)
 		fmt.Println(reqPieceID)
+		t.mutex.Lock()
+		t.lastPieceRequest = reqPieceID
+		t.mutex.Unlock()
 		if reqPieceID == -1 {
 			fmt.Printf("CONNECT %d, NOT\n", t.descriptor)
 			if err := t.QueueMessage(NOTINTERESTED, Payload{}); err != nil {
