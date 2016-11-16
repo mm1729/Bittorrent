@@ -156,6 +156,11 @@ func (t *PeerContactManager) GetProgress() (int, int, int) {
 	return t.pieceManager.GetProgress()
 }
 
+func (t *PeerContactManager) StopDownload() error {
+	// Stop go functions here ?
+	return t.pieceManager.SaveProgress()
+}
+
 /*
 * opens up a listener to listen for incoming peer connections
 * @port to openup listener on

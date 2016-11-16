@@ -4,18 +4,31 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"runtime"
 	"sync"
 	"time"
 )
 
 //ClientID is the 20 byte id of our client
-var ClientID = "DONDESTALABIBLIOTECA"
-
 //ProtoName is the BitTorrent protocol we are using
-var ProtoName = "BitTorrent protocol"
+const (
+	ListenPort = 6881
+	ProtoName  = "BitTorrent protocol"
+	ClientID   = "DONDESTALABIBLIOTECA"
+)
 
-const ListenPort = 6881
+var manager PeerContactManager
+
+func sigHandler(ch chan os.Signal) {
+	<-ch
+	fmt.Println("Stopping Download...")
+	if err := manager.StopDownload(); err != nil {
+		fmt.Println(err)
+	}
+	os.Exit(0)
+
+}
 
 func main() {
 	runtime.GOMAXPROCS(2)
@@ -49,7 +62,24 @@ func main() {
 		InfoHash:     string(hash[:len(hash)]),
 	}
 	var wg sync.WaitGroup
-	manager := NewPeerContactManager(&wg, tInfo, fileName, 10, 10, 10)
+	manager = NewPeerContactManager(&wg, tInfo, fileName, 10, 10, 10)
+
+	// keep announcing to tracker at Interval seconds
+	ticker := time.NewTicker(time.Second * time.Duration(interval))
+	go func() {
+		for _ = range ticker.C {
+			tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left =
+				manager.GetProgress()
+			tkInfo.sendGetRequest("")
+		}
+	}()
+
+	// Listen for SIGINT to save bitfield to metafile
+	sigChannel := make(chan os.Signal, 1)
+	signal.Notify(sigChannel, os.Interrupt)
+	go func() {
+		sigHandler(sigChannel)
+	}()
 
 	// start listening for requests
 	go func() {
@@ -66,17 +96,6 @@ func main() {
 		return
 	}
 
-	// keep announcing to tracker at Interval seconds
-	ticker := time.NewTicker(time.Second * time.Duration(interval))
-	//fmt.Println("Sending updates to tracker at ", interval, "s")
-
-	go func() {
-		for _ = range ticker.C {
-			tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left =
-				manager.GetProgress()
-			tkInfo.sendGetRequest("")
-		}
-	}()
 	ticker.Stop() // ticker is done
 	// Send event stopped message to tracker
 	tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left = manager.GetProgress()

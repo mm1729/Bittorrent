@@ -3,10 +3,11 @@ package main
 import (
 	"crypto/sha1"
 	"errors"
-	//	"fmt"
+	"fmt"
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -23,28 +24,58 @@ const (
 
 //FileWriter is the struct containing information writing to a file
 type FileWriter struct {
-	Info     *InfoDict
-	DataFile *os.File
-	Status   status
+	Info         *InfoDict
+	DataFile     *os.File
+	Status       status
+	MetaDataFile *os.File
 }
 
 //NewFileWriter Create initializes a new File Writer write to a particular file based on info
 //in the Info dictionary
-func NewFileWriter(tInfo *InfoDict, fileName string) FileWriter {
+func NewFileWriter(tInfo *InfoDict, fileName string, metaFileLength int64) FileWriter {
 	var f FileWriter
 	f.Info = tInfo
 
-	file, err := os.Create(fileName)
-	if err != nil {
-		log.Fatal("Error creating file to write pieces\n", err)
-	}
-	if err := file.Truncate(int64(tInfo.Length)); err != nil {
-		log.Fatal("Unable to create a file with enough space for torrent\n", err)
+	dirName := strings.Split(fileName, ".")[0]
+	if _, err := os.Stat(dirName); err != nil {
+		if os.IsNotExist(err) { // directory does not exist create it
+			if err := os.Mkdir(dirName, 0755); err != nil {
+				log.Fatal("Unable to open/create download directory\n", err)
+			}
+
+		}
+
 	}
 
-	f.DataFile = file // f is now the file where data is to be written
+	f.DataFile = f.OpenFile(filepath.Join(dirName, fileName), int64(tInfo.Length))
+	f.MetaDataFile = f.OpenFile(filepath.Join(dirName, "."+fileName+".meta"), metaFileLength)
+
 	f.Status = CREATED
 	return f
+}
+
+func (f *FileWriter) OpenFile(path string, size int64) *os.File {
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) { // file does not exist create it
+			file, err := os.Create(path)
+			if err != nil {
+				log.Fatal("Error creating file to write pieces\n", err)
+			}
+			if err := file.Truncate(size); err != nil {
+				log.Fatal("Unable to create a file with enough space for torrent\n", err)
+			}
+			return file
+
+		}
+		log.Fatal(err)
+	}
+	// file exists just open it
+	fmt.Println(path)
+	file, err := os.OpenFile(path, os.O_RDWR, 0666)
+	if err != nil {
+		log.Fatal("Error opening existing file in FileWriter\n", err)
+	}
+	return file
 }
 
 //Write writes to the file specified in the FileWriter created before
@@ -128,4 +159,17 @@ func (f *FileWriter) Restart() bool {
 		return true
 	}
 	return false
+}
+
+// Write meta data to meta file
+func (f *FileWriter) WriteMetaData(data []byte) error {
+	_, err := f.MetaDataFile.WriteAt(data, 0)
+	return err
+}
+
+func (f *FileWriter) GetMetaData(size int) ([]byte, error) {
+	data := make([]byte, size, size)
+	_, err := f.MetaDataFile.ReadAt(data, 0)
+	//fmt.Println(data)
+	return data, err
 }

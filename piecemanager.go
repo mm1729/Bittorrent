@@ -12,6 +12,7 @@ import (
 	"math"
 	"sync"
 	//"os"
+	"io"
 )
 
 /*
@@ -54,19 +55,20 @@ NewPieceManager constructor
 func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) PieceManager {
 	//create new piecemanager
 	var p PieceManager
-
-	//create file writer
-	fW := NewFileWriter(tInfo, fileName)
-	p.fileWriter = &fW
-
 	//number of pieces in total
 	numPieces := math.Ceil(float64(tInfo.Length) / float64(tInfo.PieceLength))
 	//store the request queue capacity
 	p.maxQueueSize = requestQueueSize
 	//number of bytes in bitField for client
 	numBytes := math.Ceil(numPieces / 8)
-	//create the bitfield with max numBytes
-	p.bitField = make([]byte, int(numBytes), int(numBytes))
+
+	//create file writer
+	fW := NewFileWriter(tInfo, fileName, int64(numBytes))
+	p.fileWriter = &fW
+
+	//get bitfield from file
+	p.bitField = p.LoadBitFieldFromFile(int(numBytes))
+	fmt.Println(p.bitField)
 	/*for i := 0; i < 63; i++ {
 		p.bitField[i] = 255
 
@@ -86,8 +88,14 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 	return p
 }
 
-func (t *PieceManager) LoadBitFieldFromFile() {
-	//implement
+// Returns the bitfield from the metadata file
+// Creates an empty bitfield if there was an error
+func (t *PieceManager) LoadBitFieldFromFile(size int) []byte {
+	data, err := t.fileWriter.GetMetaData(size)
+	if err != nil && err != io.EOF {
+		return make([]byte, size, size)
+	}
+	return data
 }
 
 /*
@@ -373,4 +381,14 @@ func (t *PieceManager) GetProgress() (uploaded int, downloaded int, left int) {
 	downloaded = numDownloaded * t.infoDict.PieceLength
 	left = t.infoDict.Length - downloaded
 	return
+}
+
+/**
+* saves bitfield to file
+**/
+func (t *PieceManager) SaveProgress() error {
+	bitField := t.GetBitField()
+	fmt.Println("Saving progress...")
+	err := t.fileWriter.WriteMetaData(bitField)
+	return err
 }
