@@ -80,7 +80,7 @@ func main() {
 	go func() {
 		sigHandler(sigChannel)
 	}()
-
+	fmt.Println("WTF?")
 	// start listening for requests
 	go func() {
 		if err := manager.StartIncoming(ListenPort); err != nil {

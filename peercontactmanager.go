@@ -128,7 +128,7 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		}
 
 	}
-	i := 0
+
 	for _, peerEntry := range peers {
 		// 1.) make TCP connection
 
@@ -136,14 +136,15 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 
 		if err != nil {
 			return err
+
 		}
 		//spawn routine to handle connection
 		t.wg.Add(1)
 		go handler(conn, peerEntry)
-		i++
+		/*i++
 		if i == 2 {
 			//	break
-		}
+		}*/
 
 	}
 	t.wg.Wait()
