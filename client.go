@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	//	"strings"
 	"sync"
 	"time"
 )
@@ -51,7 +52,7 @@ func main() {
 	// Tracker connection
 	tkInfo := NewTracker(hash, torrent, &iDict, ListenPort)
 	peerList, interval := tkInfo.Connect()
-	fmt.Printf("%v\n", peerList)
+	//fmt.Printf("%v\n", peerList)
 
 	//Start peer download
 	tInfo := TorrentInfo{
@@ -66,11 +67,18 @@ func main() {
 
 	// keep announcing to tracker at Interval seconds
 	ticker := time.NewTicker(time.Second * time.Duration(interval))
+	//i := 0
+	//j := 10
+	//fmt.Println("[", strings.Repeat("#", i), strings.Repeat("-", j), "]")
 	go func() {
 		for _ = range ticker.C {
+			//	fmt.Println("HERE")
+			//	j--
+			//	i++
 			tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left =
 				manager.GetProgress()
 			tkInfo.sendGetRequest("")
+			//	fmt.Println("\r[", strings.Repeat("#", i), strings.Repeat("-", j), "]")
 		}
 	}()
 

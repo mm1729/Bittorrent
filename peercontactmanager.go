@@ -74,7 +74,7 @@ func NewPeerContactManager(wg *sync.WaitGroup, tInfo TorrentInfo, fileName strin
  */
 func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 	//handle the peer connection
-	i := 0
+
 	for _, peerEntry := range peers {
 		// 1.) make TCP connection
 
@@ -86,10 +86,6 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		//spawn routine to handle connection
 		t.wg.Add(1)
 		go t.handler(conn, peerEntry)
-		i++
-		if i == 2 {
-			//	break
-		}
 
 	}
 	t.wg.Wait()
@@ -123,7 +119,6 @@ func (t *PeerContactManager) handler(tcpConnection net.Conn, peer Peer) {
 
 			select {
 			case <-errChan:
-
 				return
 			default:
 			}
@@ -134,14 +129,12 @@ func (t *PeerContactManager) handler(tcpConnection net.Conn, peer Peer) {
 	for {
 		err := manager.ReceiveNextMessage()
 		if err != nil {
-
 			errChan <- err
 			manager.StopConnection()
 			t.wg.Done()
 			return
 
 		}
-
 		select {
 
 		case <-errChan:
@@ -174,7 +167,6 @@ func (t *PeerContactManager) StopDownload() error {
 func (t *PeerContactManager) StartIncoming(port uint32) error {
 	// listen on all network interfaces on port input
 	ln, err := net.Listen("tcp", ":"+strconv.Itoa(int(port)))
-	fmt.Printf("%v\n", ln)
 	if err != nil {
 		return err
 	}
@@ -182,6 +174,7 @@ func (t *PeerContactManager) StartIncoming(port uint32) error {
 
 	for {
 		conn, err := ln.Accept()
+		fmt.Println("GOT IN")
 		if err != nil {
 			return err
 		}
