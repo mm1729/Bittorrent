@@ -113,4 +113,8 @@ func main() {
 		tkInfo.sendGetRequest("completed")
 	}
 	tkInfo.Disconnect()
+
+	if err := manager.StopDownload(); err != nil {
+		fmt.Println(err)
+	}
 }

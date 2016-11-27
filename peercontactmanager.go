@@ -11,7 +11,7 @@ import (
 	//"encoding/binary"
 	//"errors"
 	"fmt"
-	//"log"
+	"log"
 	"net"
 	"strconv"
 	"sync"
@@ -74,61 +74,7 @@ func NewPeerContactManager(wg *sync.WaitGroup, tInfo TorrentInfo, fileName strin
  */
 func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 	//handle the peer connection
-	handler := func(tcpConnection net.Conn, peer Peer) {
-		fmt.Printf("connection to %v spawned\n", peer.IP)
-
-		//open up a new connection manager
-		manager := NewConnectionManager(&t.pieceManager, t.msgQueueMax, t.in, t.out)
-		//start up the connection
-		manager.StartConnection(tcpConnection, peer, t.tInfo, 120, 2)
-		//loop receiving and sending messages
-		//send loop ( this might possibly speed things up
-
-		errChan := make(chan error)
-		go func(errChan chan error) {
-			for {
-				err := manager.SendNextMessage()
-				if err != nil {
-
-					errChan <- err
-
-					return
-				}
-
-				select {
-				case <-errChan:
-
-					return
-				default:
-				}
-
-			}
-		}(errChan)
-		//receive loop
-		for {
-			err := manager.ReceiveNextMessage()
-			if err != nil {
-
-				errChan <- err
-				manager.StopConnection()
-				t.wg.Done()
-				return
-
-			}
-
-			select {
-
-			case <-errChan:
-				tcpConnection.Close()
-				manager.StopConnection()
-				t.wg.Done()
-				return
-			default:
-			}
-		}
-
-	}
-
+	i := 0
 	for _, peerEntry := range peers {
 		// 1.) make TCP connection
 
@@ -136,20 +82,71 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 
 		if err != nil {
 			return err
-
 		}
 		//spawn routine to handle connection
 		t.wg.Add(1)
-		go handler(conn, peerEntry)
-		/*i++
-		if i == 2 {
-			//	break
-		}*/
+		go t.handler(conn, peerEntry)
 
 	}
 	t.wg.Wait()
 
 	return nil
+
+}
+
+func (t *PeerContactManager) handler(tcpConnection net.Conn, peer Peer) {
+	fmt.Printf("connection to %v spawned\n", peer.IP)
+
+	//open up a new connection manager
+	manager := NewConnectionManager(&t.pieceManager, t.msgQueueMax, t.in, t.out)
+	//start up the connection
+	if err := manager.StartConnection(tcpConnection, peer, t.tInfo, 120, 2); err != nil {
+		log.Fatal(err)
+	}
+	//loop receiving and sending messages
+	//send loop ( this might possibly speed things up
+
+	errChan := make(chan error)
+	go func(errChan chan error) {
+		for {
+			err := manager.SendNextMessage()
+			if err != nil {
+
+				errChan <- err
+
+				return
+			}
+
+			select {
+			case <-errChan:
+				return
+			default:
+			}
+
+		}
+	}(errChan)
+	//receive loop
+	for {
+		err := manager.ReceiveNextMessage()
+		if err != nil {
+			errChan <- err
+			manager.StopConnection()
+			t.wg.Done()
+			return
+
+		}
+		select {
+
+		case <-errChan:
+			tcpConnection.Close()
+			manager.StopConnection()
+			t.wg.Done()
+			return
+		case <-t.in: //just unchoke all peers
+			t.out <- true
+		default:
+		}
+	}
 
 }
 
@@ -189,4 +186,5 @@ func (t *PeerContactManager) StartIncoming(port uint32) error {
 
 func (t *PeerContactManager) incomingHandler(conn net.Conn) {
 	fmt.Println(conn.LocalAddr().String(), " Got connection from ", conn.RemoteAddr().String())
+	t.handler(conn, Peer{})
 }

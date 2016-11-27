@@ -22,12 +22,12 @@ type TrackerInfo struct {
 
 //TrackerResponse is the decoded response of the Tracker
 type TrackerResponse struct {
-	Complete    int64
-	Downloaded  int64
-	Incomplete  int64
-	Interval    int64
-	MinInterval int64 `bencode:"min interval"`
-	Peers       []Peer
+	Complete    int64  `bencode:"complete"`
+	Downloaded  int64  `bencode:"downloaded"`
+	Incomplete  int64  `bencode:"incomplete"`
+	Interval    int64  `bencode:"interval"`
+	MinInterval int64  `bencode:"min interval"`
+	Peers       []Peer `bencode:"peers"`
 }
 
 // Peer is the struct containing the ip, peerid and the port of a peer

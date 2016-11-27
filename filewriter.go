@@ -101,6 +101,12 @@ func (f *FileWriter) Write(data []byte, index int) error {
 	return err
 }
 
+func (f *FileWriter) Read(index int32) (error, []byte) {
+	data := make([]byte, f.Info.PieceLength, f.Info.PieceLength)
+	_, err := f.DataFile.ReadAt(data, int64(index*int32(f.Info.PieceLength)))
+	return err, data
+}
+
 func (f *FileWriter) checkSHA1(data []byte, index int) bool {
 	// compute the hash of data
 	hash := sha1.New()

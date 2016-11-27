@@ -172,7 +172,7 @@ func CreateMessage(msgType MsgType, payLoad Payload) (arr []byte, err error) {
 		binary.Write(buf, binary.BigEndian, id)
 		binary.Write(buf, binary.BigEndian, intToByteArr(payLoad.pieceIndex))
 		binary.Write(buf, binary.BigEndian, intToByteArr(payLoad.begin))
-		binary.Write(buf, binary.BigEndian, intToByteArr(payLoad.length))
+		binary.Write(buf, binary.BigEndian, payLoad.block)
 		arr = buf.Bytes()
 	case BITFIELD:
 		buf := new(bytes.Buffer)

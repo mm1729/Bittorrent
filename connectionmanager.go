@@ -165,6 +165,7 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
 	}
 
 	t.descriptor = t.pieceManager.RegisterConnection(inMessage.Payload.bitField)
+	fmt.Println(inMessage.Payload.bitField)
 
 	if t.pieceManager.ComputeRequestQueue(t.descriptor) == true {
 
@@ -229,6 +230,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		//peer is interested in downloading from us
 		t.status.PeerInterested = true
 		//request permission to unchoke this peer
+		fmt.Println("INTERESTED")
 
 		t.toPeerContact <- true
 		if answer := <-t.fromPeerContact; answer == true {
@@ -258,13 +260,21 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 
 	case REQUEST:
 		//a peer has requested a piece
-		if t.pieceManager.GetPiece(inMessage.Payload.pieceIndex) == true {
-			//create piece response message to upload to peer
-			//return it
-			//implement
+		fmt.Println("REQUEST", inMessage.Payload)
 
-		} else {
-			return errors.New("Piece requested is not currently in possesion")
+		if t.status.ClientChoked == true {
+			return errors.New("Peer is choked. Cannot cater requests from it")
+		}
+
+		if err, data := t.pieceManager.GetPiece(inMessage.Payload.pieceIndex); err != nil {
+			//return piece response
+			payload := Payload{inMessage.Payload.pieceIndex, []byte{}, 0, int32(len(data)), data}
+			if err := t.QueueMessage(PIECE, payload); err != nil {
+				return err
+			}
+
+		} else { // could not cater the request
+			return err
 		}
 
 	case HAVE:

@@ -161,7 +161,7 @@ func parseHandshakePacket(hsk []byte, peer Peer, info TorrentInfo) error {
 	}
 	//parse and cmpare the peer id
 	peerID := string(hsk[pstrLen+9+20:])
-	if strings.Compare(peerID, peer.PeerID) != 0 {
+	if peer.PeerID != "" && strings.Compare(peerID, peer.PeerID) != 0 {
 		return errors.New("receiveHandshakeMsg: peerId doesn't match")
 	}
 
