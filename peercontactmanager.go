@@ -74,7 +74,7 @@ func NewPeerContactManager(wg *sync.WaitGroup, tInfo TorrentInfo, fileName strin
  */
 func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 	//handle the peer connection
-	i := 0
+
 	for _, peerEntry := range peers {
 		// 1.) make TCP connection
 
