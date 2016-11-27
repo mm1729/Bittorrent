@@ -163,9 +163,9 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
 
 		return err
 	}
-
+	fmt.Printf("PEER FIELD %v\n", inMessage.Payload.bitField)
 	t.descriptor = t.pieceManager.RegisterConnection(inMessage.Payload.bitField)
-	fmt.Println(inMessage.Payload.bitField)
+	//fmt.Println(inMessage.Payload.bitField)
 
 	if t.pieceManager.ComputeRequestQueue(t.descriptor) == true {
 
@@ -213,15 +213,16 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 
 	switch inMessage.Mtype {
 	case KEEPALIVE:
+		fmt.Println("KEEPALIVE")
 		return nil
 		//implement
 		//clock how much time has gone by, then push a keepalive in
 	case CHOKE:
-
+		fmt.Println("CHOKE")
 		//the peer has choked us
 		t.status.PeerChoked = true
 	case UNCHOKE:
-
+		fmt.Println("UNCHOKE")
 		//the peer has unchoked us
 
 		t.status.PeerChoked = false
@@ -244,9 +245,11 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 			//maybe send a choke msg, or unchoke at a later time?
 		}
 	case NOTINTERESTED:
+		fmt.Println("NOT INTERESTED")
 		//peer is not interested in downloading from us
 		t.status.PeerInterested = false
 	case BITFIELD:
+		fmt.Println("BITFIELD")
 		//this would be an error
 	case PIECE:
 		fmt.Printf("CONNECTION %d: PIECE %d\n", t.descriptor, inMessage.Payload.pieceIndex)
@@ -278,10 +281,12 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		}
 
 	case HAVE:
+		fmt.Println("HAVE")
 		//the peer is sending a have msg to update its bitfield
 		t.pieceManager.UpdatePeerField(t.descriptor, inMessage.Payload.pieceIndex)
 
 	case CANCEL:
+		fmt.Println("CANCEL")
 		//implement
 	}
 
@@ -315,7 +320,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 
 		} else {
 			//send a request message for that piece, put in queue
-			fmt.Printf("Connection %d, REQUEST PIECE %d\n", t.descriptor, reqPieceID)
+			//fmt.Printf("Connection %d, REQUEST PIECE %d\n", t.descriptor, reqPieceID)
 			if err := t.QueueMessage(REQUEST, Payload{pieceIndex: int32(reqPieceID), begin: 0, length: int32(t.tInfo.TInfo.PieceLength)}); err != nil {
 				return err
 			}

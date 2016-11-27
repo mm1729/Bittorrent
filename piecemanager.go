@@ -291,7 +291,7 @@ func (t *PieceManager) GetNextRequest(connection int) int {
 			return -1
 		}
 	}
-	fmt.Println(t.manager[connection].requestQueue)
+	//fmt.Println(t.manager[connection].requestQueue)
 	//pop off queue
 	next := t.manager[connection].requestQueue[0]
 	t.manager[connection].requestQueue = t.manager[connection].requestQueue[1:]
@@ -326,7 +326,7 @@ func (t *PieceManager) GetNextHaveBroadcast(connection int) chan int32 {
 	for i := 0; i < curLen; i++ {
 		select {
 		case have := <-t.manager[connection].haveBroadcastQueue:
-			fmt.Println("Got have:", connection, "piece:", have)
+			//fmt.Println("Got have:", connection, "piece:", have)
 			subChan <- have
 		default:
 		}
@@ -348,7 +348,7 @@ func (t *PieceManager) CreateHaveBroadcast(connection int, pieceIndex int32) {
 			continue
 		}
 		//	fmt.Println("IN", connection)
-		fmt.Println("connection", index, "LEN", len(element.haveBroadcastQueue))
+		//fmt.Println("connection", index, "LEN", len(element.haveBroadcastQueue))
 		element.haveBroadcastQueue <- pieceIndex
 
 		//	fmt.Println("OUT", connection)

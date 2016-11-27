@@ -167,7 +167,6 @@ func (t *PeerContactManager) StopDownload() error {
 func (t *PeerContactManager) StartIncoming(port uint32) error {
 	// listen on all network interfaces on port input
 	ln, err := net.Listen("tcp", ":"+strconv.Itoa(int(port)))
-	fmt.Printf("%v\n", ln)
 	if err != nil {
 		return err
 	}
@@ -175,6 +174,7 @@ func (t *PeerContactManager) StartIncoming(port uint32) error {
 
 	for {
 		conn, err := ln.Accept()
+		fmt.Println("GOT IN")
 		if err != nil {
 			return err
 		}
