@@ -39,6 +39,11 @@ type PeerContactManager struct {
 	out            chan bool
 	msgQueueMax    int //maxmimum number of pieces queue up for a peer
 	wg             *sync.WaitGroup
+
+	inComingChanListLock *sync.Mutex
+	outGoingChanListLock *sync.Mutex
+	outGoing             []chan bool
+	inComing             []chan bool
 }
 
 /*
@@ -63,6 +68,7 @@ func NewPeerContactManager(wg *sync.WaitGroup, tInfo TorrentInfo, fileName strin
 	p.in = make(chan bool)  //receive requests for unchoking
 	p.out = make(chan bool) //respond to requests for unchoking
 	p.msgQueueMax = maxMsgQueue
+
 	return p
 }
 
@@ -85,6 +91,7 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		}
 		//spawn routine to handle connection
 		t.wg.Add(1)
+
 		go t.handler(conn, peerEntry)
 
 	}
@@ -111,9 +118,7 @@ func (t *PeerContactManager) handler(tcpConnection net.Conn, peer Peer) {
 		for {
 			err := manager.SendNextMessage()
 			if err != nil {
-
 				errChan <- err
-
 				return
 			}
 
@@ -130,32 +135,29 @@ func (t *PeerContactManager) handler(tcpConnection net.Conn, peer Peer) {
 		err := manager.ReceiveNextMessage()
 		if err != nil {
 			errChan <- err
-			manager.StopConnection()
-			t.wg.Done()
-			return
-
+			break
 		}
 		select {
 
 		case <-errChan:
-			tcpConnection.Close()
-			manager.StopConnection()
-			t.wg.Done()
-			return
+			break
 		case <-t.in: //just unchoke all peers
 			t.out <- true
 		default:
 		}
 	}
+	manager.StopConnection()
+	tcpConnection.Close()
+	t.wg.Done()
 
 }
-
 func (t *PeerContactManager) GetProgress() (int, int, int) {
 	return t.pieceManager.GetProgress()
 }
 
 func (t *PeerContactManager) StopDownload() error {
 	// Stop go functions here ?
+
 	return t.pieceManager.SaveProgress()
 }
 
@@ -174,17 +176,20 @@ func (t *PeerContactManager) StartIncoming(port uint32) error {
 
 	for {
 		conn, err := ln.Accept()
-		fmt.Println("GOT IN")
+
 		if err != nil {
 			return err
 		}
 
 		go t.incomingHandler(conn)
+
 	}
+
 	return nil
 }
 
 func (t *PeerContactManager) incomingHandler(conn net.Conn) {
 	fmt.Println(conn.LocalAddr().String(), " Got connection from ", conn.RemoteAddr().String())
 	t.handler(conn, Peer{})
+
 }

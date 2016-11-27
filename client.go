@@ -21,12 +21,13 @@ const (
 
 var manager PeerContactManager
 
-func sigHandler(ch chan os.Signal) {
+func sigHandler(ch chan os.Signal, tkInfo TrackerInfo) {
 	<-ch
-	fmt.Println("Stopping Download...")
+	fmt.Println("Exiting...")
 	if err := manager.StopDownload(); err != nil {
 		fmt.Println(err)
 	}
+	tkInfo.Disconnect()
 	os.Exit(0)
 
 }
@@ -86,7 +87,7 @@ func main() {
 	sigChannel := make(chan os.Signal, 1)
 	signal.Notify(sigChannel, os.Interrupt)
 	go func() {
-		sigHandler(sigChannel)
+		sigHandler(sigChannel, tkInfo)
 	}()
 
 	// start listening for requests
@@ -120,9 +121,15 @@ func main() {
 	if tkInfo.Left == 0 { // send completed message if the download is complete
 		tkInfo.sendGetRequest("completed")
 	}
-	tkInfo.Disconnect()
+	fmt.Println("Download completed. Waiting for user input...")
+	for {
 
-	if err := manager.StopDownload(); err != nil {
-		fmt.Println(err)
 	}
+	/*
+
+		tkInfo.Disconnect()
+
+		if err := manager.StopDownload(); err != nil {
+			fmt.Println(err)
+		}*/
 }

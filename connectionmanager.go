@@ -90,6 +90,9 @@ func NewConnectionManager(pieceManager *PieceManager, msgQueueMax int, out chan<
 func (t *ConnectionManager) StopConnection() {
 	t.mutex.Lock()
 	t.pieceManager.UnregisterConnection(t.descriptor, t.lastPieceRequest)
+
+	t.pWriter.Flush()
+
 	t.mutex.Unlock()
 }
 
@@ -222,7 +225,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		//the peer has choked us
 		t.status.PeerChoked = true
 	case UNCHOKE:
-		fmt.Println("UNCHOKE")
+
 		//the peer has unchoked us
 
 		t.status.PeerChoked = false
