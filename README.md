@@ -76,11 +76,36 @@ it works with one peer at a time. It stores the peer bitfield and the
 client bitfield to check what pieces it is missing. PieceManager stores
 the requests (10 by default) in a queue to quickly send the requests
 
-/////////
-// RTT //
-/////////
+With the addition of multiple peers downloading and uploading, it was require to introduce synchronization to the piecemanaeger. The piecemanager now contains two bitfields, one called "bitfield", which is the pieces that we, the client, current are in possesion of. We send this field to whoever we speak too. The second bitfield is called the "transitField", this is marked by a peer connection [go routine] that claims responsibilty for retrieving that piece from the peer it manages. This allows from multiple connections to concurrently access the piecemanager claiming pieces and putting them into their request queues to be downloaded from a peer. When the piece is actually retrieved, it is marked in the "bitfield" that we now have it. Mutexes are used for synchronization.
 
-findRTT - Finds the round trip time for a given peer. This calculates the time it takes to ping a peer 10 times. Then divide this number by 10 to find the average.
+All connections are responsible for registering with the piecemanager. For each connection registered, the piece manager generates a data structure that keeps track of the pieces that connection is responsible for downloading, what pieces the peer who is in that connection has, and a "haveBroadcastQueue". Have messages are sent to all peers we are connected to whenever we complete the downloading of a piece. Thus connections signal the piece manager that a piece has been downloaded and the piece manager puts a have message in all the "haveBroadcastQueue"'s of each of the connections registered. This connections then send Have messages to their peers.
 
-findMinRTT - Finds the minimum round trip time of the 3 peers that are contacted. 
+When a connection fails for any reason the connection manager for that peer connection notifies the piecemananger who loops through that peer's piece request queue to flip the bits of all bits in the transitField that correspond to those pieces ,including the one it was about to request but caused the error. Thus other peers can now claim respnisbiltiy for those pieces.
 
+
+The piece manager also saves the state of what pieces we have to file if the program is ever stopped. This allows the bitfield to be loaded up again upon restart.
+
+
+
+/////////////////////
+//ConnectionManager//
+/////////////////////
+
+Connection Managers are spawned for every peer connection created [outgoing or incoming]. It is responsible for maintaing a queue of messages to be sent to the peer it manages, performing the correct action upon receiving a specific message, and sending messages. When a connection manager is created for a tcp connection is registers with the piece manager [as described above], and unregisters upon failure or completetion.
+
+The use of the connection and piece manager  in this fashion allows us to use the same interface for both incoming and outgoing peer connections in addition to uploading and downloading.
+
+The connection manager also contacts the piecemanager if a peer every claims to have received a new piece it did not have before (i.e. it send a Have msg to us), use UpdatePeerField.
+
+
+/////////////////////////
+//PeerConnectionManager//
+/////////////////////////
+
+Each of these components, piece manage,r connection manager and Peer Connection Manager abstract a certain level of the connection process. Piece Manager abstracts keeping track of what pieces we have and what we need. Connection Manager abstracts the actual receiving and sending of messages to a peer and how to act accordingly. Peer Connection Manager abstracts the actual TCP connections made for incoming and outgoing connections. It spawns a listener for incoming connections and attempts to make outgoing connections to all peers in the tracker's list. A connection manager is created for each of the incoming and outgoing connections.
+
+
+////////////////////////
+//Packet///////////////
+///////////////////////
+Packet abstracts the actual lower level sending and receiving of binary messages, parsing them to be read by ConnectionManager.
