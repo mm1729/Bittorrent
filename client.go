@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	//	"strings"
 	"sync"
 	"time"
 )
@@ -20,12 +21,13 @@ const (
 
 var manager PeerContactManager
 
-func sigHandler(ch chan os.Signal) {
+func sigHandler(ch chan os.Signal, tkInfo TrackerInfo) {
 	<-ch
-	fmt.Println("Stopping Download...")
+	fmt.Println("Exiting...")
 	if err := manager.StopDownload(); err != nil {
 		fmt.Println(err)
 	}
+	tkInfo.Disconnect()
 	os.Exit(0)
 
 }
@@ -51,7 +53,7 @@ func main() {
 	// Tracker connection
 	tkInfo := NewTracker(hash, torrent, &iDict, ListenPort)
 	peerList, interval := tkInfo.Connect()
-	fmt.Printf("%v\n", peerList)
+	//fmt.Printf("%v\n", peerList)
 
 	//Start peer download
 	tInfo := TorrentInfo{
@@ -66,11 +68,18 @@ func main() {
 
 	// keep announcing to tracker at Interval seconds
 	ticker := time.NewTicker(time.Second * time.Duration(interval))
+	//i := 0
+	//j := 10
+	//fmt.Println("[", strings.Repeat("#", i), strings.Repeat("-", j), "]")
 	go func() {
 		for _ = range ticker.C {
+			//	fmt.Println("HERE")
+			//	j--
+			//	i++
 			tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left =
 				manager.GetProgress()
 			tkInfo.sendGetRequest("")
+			//	fmt.Println("\r[", strings.Repeat("#", i), strings.Repeat("-", j), "]")
 		}
 	}()
 
@@ -78,7 +87,7 @@ func main() {
 	sigChannel := make(chan os.Signal, 1)
 	signal.Notify(sigChannel, os.Interrupt)
 	go func() {
-		sigHandler(sigChannel)
+		sigHandler(sigChannel, tkInfo)
 	}()
 
 	// start listening for requests
@@ -112,9 +121,15 @@ func main() {
 	if tkInfo.Left == 0 { // send completed message if the download is complete
 		tkInfo.sendGetRequest("completed")
 	}
-	tkInfo.Disconnect()
+	fmt.Println("Download completed. Waiting for user input...")
+	for {
 
-	if err := manager.StopDownload(); err != nil {
-		fmt.Println(err)
 	}
+	/*
+
+		tkInfo.Disconnect()
+
+		if err := manager.StopDownload(); err != nil {
+			fmt.Println(err)
+		}*/
 }
