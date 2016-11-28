@@ -101,7 +101,6 @@ func (t *ConnectionManager) StopConnection() {
 	t.pWriter.Flush()
 
 	t.mutex.Unlock()
-	fmt.Println("KILLING -> DIE")
 	t.die <- true
 	t.wg.Wait()
 }
@@ -157,14 +156,14 @@ func (t *ConnectionManager) StartConnection(conn net.Conn, peer Peer, tInfo Torr
 			//	fmt.Println("WOKE UP")
 			select {
 			case <-die:
-				fmt.Println("DIE")
+				//	fmt.Println("DIE")
 				t.wg.Done()
 				return
 			case <-received:
-				fmt.Println("No KEEP ALIVE NEEDED")
+			//	fmt.Println("No KEEP ALIVE NEEDED")
 
 			default:
-				fmt.Println("Sending KEEPALVE to %v\n", t.conn.RemoteAddr())
+				//	fmt.Println("Sending KEEPALVE to %v\n", t.conn.RemoteAddr())
 				if err := t.QueueMessage(KEEPALIVE, Payload{}); err != nil {
 					return
 				}
@@ -255,7 +254,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 
 		return err
 	}
-	fmt.Printf("Msg from %v: ", t.conn.RemoteAddr())
+	//	fmt.Printf("Msg from %v: ", t.conn.RemoteAddr())
 	switch inMessage.Mtype {
 	case KEEPALIVE:
 		fmt.Println("KEEPALIVE")
@@ -264,6 +263,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		//clock how much time has gone by, then push a keepalive in
 	case CHOKE:
 		fmt.Println("CHOKE")
+		t.pieceManager.UnregisterConnection(t.descriptor, t.lastPieceRequest)
 		//the peer has choked us
 		t.status.PeerChoked = true
 	case UNCHOKE:
@@ -297,7 +297,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 			return err
 		}
 
-		fmt.Println("ESCAPED")
+	//	fmt.Println("ESCAPED")
 	case NOTINTERESTED:
 		fmt.Println("NOT INTERESTED")
 		//peer is not interested in downloading from us
