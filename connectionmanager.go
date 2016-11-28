@@ -49,6 +49,11 @@ type ConnectionManager struct {
 	mutex            *sync.Mutex
 
 	flushChan chan bool
+
+	received chan bool
+	die      chan bool
+
+	wg *sync.WaitGroup
 }
 
 /*
@@ -84,6 +89,8 @@ func NewConnectionManager(pieceManager *PieceManager, msgQueueMax int, out chan<
 	p.packetHandler = &pkt
 
 	p.lastPieceRequest = -1
+	var wg sync.WaitGroup
+	p.wg = &wg
 	return p
 }
 
@@ -94,6 +101,9 @@ func (t *ConnectionManager) StopConnection() {
 	t.pWriter.Flush()
 
 	t.mutex.Unlock()
+	fmt.Println("KILLING -> DIE")
+	t.die <- true
+	t.wg.Wait()
 }
 
 /*
@@ -136,6 +146,34 @@ func (t *ConnectionManager) StartConnection(conn net.Conn, peer Peer, tInfo Torr
 		return err
 	}
 
+	t.received = make(chan bool, 1)
+	t.die = make(chan bool, 1)
+
+	go func(received chan bool, die chan bool) {
+		t.wg.Add(1)
+		for {
+			//fmt.Println("SLEEPING")
+			time.Sleep(2 * time.Minute)
+			//	fmt.Println("WOKE UP")
+			select {
+			case <-die:
+				fmt.Println("DIE")
+				t.wg.Done()
+				return
+			case <-received:
+				fmt.Println("No KEEP ALIVE NEEDED")
+
+			default:
+				fmt.Println("Sending KEEPALVE to %v\n", t.conn.RemoteAddr())
+				if err := t.QueueMessage(KEEPALIVE, Payload{}); err != nil {
+					return
+				}
+
+			}
+		}
+
+	}(t.received, t.die)
+
 	return nil
 
 }
@@ -174,7 +212,7 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
 
 		var msg []byte
 		var err error
-
+		fmt.Printf("Sending %v: INTERESTED\n", t.conn.RemoteAddr())
 		if msg, err = CreateMessage(INTERESTED, Payload{}); err != nil {
 			return err
 		}
@@ -187,6 +225,7 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
 
 		var msg []byte
 		var err error
+		fmt.Printf("Sendng %v: NOTINTERESTED\n", t.conn.RemoteAddr())
 		if msg, err = CreateMessage(NOTINTERESTED, Payload{}); err != nil {
 			return err
 		}
@@ -208,12 +247,15 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
 func (t *ConnectionManager) ReceiveNextMessage() error {
 
 	inMessage, err := t.packetHandler.ReceiveArbitraryPacket(t.pReader, t.timeout, t.conn)
-
+	select {
+	case t.received <- true:
+	default:
+	}
 	if err != nil {
 
 		return err
 	}
-
+	fmt.Printf("Msg from %v: ", t.conn.RemoteAddr())
 	switch inMessage.Mtype {
 	case KEEPALIVE:
 		fmt.Println("KEEPALIVE")
@@ -225,7 +267,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		//the peer has choked us
 		t.status.PeerChoked = true
 	case UNCHOKE:
-
+		fmt.Println("UNCHOKE")
 		//the peer has unchoked us
 
 		t.status.PeerChoked = false
@@ -236,17 +278,26 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		//request permission to unchoke this peer
 		fmt.Println("INTERESTED")
 
-		t.toPeerContact <- true
-		if answer := <-t.fromPeerContact; answer == true {
+		//t.toPeerContact <- true
+		/*if answer := <-t.fromPeerContact; answer == true {
 			t.status.ClientChoked = false
 			//permission granted, unchoke them
+			fmt.Println("SENDING UNCHOKE")
 			if err := t.QueueMessage(UNCHOKE, Payload{}); err != nil {
 				return err
 			}
 		} else {
+			fmt.Println("NO UNCHOKE")
 			t.status.ClientChoked = true
 			//maybe send a choke msg, or unchoke at a later time?
+		}*/
+		t.status.ClientChoked = false
+		fmt.Printf("Sending UNCHOKE to %v\n", t.conn.RemoteAddr())
+		if err := t.QueueMessage(UNCHOKE, Payload{}); err != nil {
+			return err
 		}
+
+		fmt.Println("ESCAPED")
 	case NOTINTERESTED:
 		fmt.Println("NOT INTERESTED")
 		//peer is not interested in downloading from us
@@ -269,17 +320,21 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 		fmt.Println("REQUEST", inMessage.Payload)
 
 		if t.status.ClientChoked == true {
+
 			return errors.New("Peer is choked. Cannot cater requests from it")
 		}
+		fmt.Printf("%v\n", inMessage.Payload.pieceIndex)
+		if err, data := t.pieceManager.GetPiece(inMessage.Payload.pieceIndex); err == nil {
 
-		if err, data := t.pieceManager.GetPiece(inMessage.Payload.pieceIndex); err != nil {
 			//return piece response
 			payload := Payload{inMessage.Payload.pieceIndex, []byte{}, 0, int32(len(data)), data}
+			fmt.Printf("Sending piece %d\n", inMessage.Payload.pieceIndex)
 			if err := t.QueueMessage(PIECE, payload); err != nil {
 				return err
 			}
 
 		} else { // could not cater the request
+			fmt.Println(err)
 			return err
 		}
 
