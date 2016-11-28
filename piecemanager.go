@@ -68,12 +68,12 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 
 	//get bitfield from file
 	p.bitField = p.LoadBitFieldFromFile(int(numBytes))
-	fmt.Println(p.bitField)
-	/*for i := 0; i < 63; i++ {
+	/*fmt.Println(p.bitField)
+	for i := 0; i < 64; i++ {
 		p.bitField[i] = 255
 
-	}
-	p.bitField[63] = 0*/
+	}*/
+	//p.bitField[63] = 0
 	//pieces which peers have claimed responsbility
 	p.transitField = make([]byte, int(numBytes), int(numBytes))
 
@@ -95,6 +95,7 @@ func (t *PieceManager) LoadBitFieldFromFile(size int) []byte {
 	if err != nil && err != io.EOF {
 		return make([]byte, size, size)
 	}
+	fmt.Printf("%v\n", data)
 	return data
 }
 

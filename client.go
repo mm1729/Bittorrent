@@ -53,6 +53,11 @@ func main() {
 	// Tracker connection
 	tkInfo := NewTracker(hash, torrent, &iDict, ListenPort)
 	peerList, interval := tkInfo.Connect()
+	/*interval := 2
+	peerList := make([]Peer, 1, 1)
+	peerList[0].IP = "127.0.0.1"
+	peerList[0].PeerID = "DONDESTALABIBLIOTECA"
+	peerList[0].Port = 6881*/
 	//fmt.Printf("%v\n", peerList)
 
 	//Start peer download
