@@ -39,6 +39,11 @@ type PeerContactManager struct {
 	out            chan bool
 	msgQueueMax    int //maxmimum number of pieces queue up for a peer
 	wg             *sync.WaitGroup
+
+	inComingChanListLock *sync.Mutex
+	outGoingChanListLock *sync.Mutex
+	outGoing             []chan bool
+	inComing             []chan bool
 }
 
 /*
@@ -63,6 +68,7 @@ func NewPeerContactManager(wg *sync.WaitGroup, tInfo TorrentInfo, fileName strin
 	p.in = make(chan bool)  //receive requests for unchoking
 	p.out = make(chan bool) //respond to requests for unchoking
 	p.msgQueueMax = maxMsgQueue
+
 	return p
 }
 
@@ -74,7 +80,7 @@ func NewPeerContactManager(wg *sync.WaitGroup, tInfo TorrentInfo, fileName strin
  */
 func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 	//handle the peer connection
-	i := 0
+
 	for _, peerEntry := range peers {
 		// 1.) make TCP connection
 
@@ -85,11 +91,8 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		}
 		//spawn routine to handle connection
 		t.wg.Add(1)
+
 		go t.handler(conn, peerEntry)
-		i++
-		if i == 2 {
-			//	break
-		}
 
 	}
 	t.wg.Wait()
@@ -115,15 +118,12 @@ func (t *PeerContactManager) handler(tcpConnection net.Conn, peer Peer) {
 		for {
 			err := manager.SendNextMessage()
 			if err != nil {
-
 				errChan <- err
-
 				return
 			}
 
 			select {
 			case <-errChan:
-
 				return
 			default:
 			}
@@ -134,35 +134,30 @@ func (t *PeerContactManager) handler(tcpConnection net.Conn, peer Peer) {
 	for {
 		err := manager.ReceiveNextMessage()
 		if err != nil {
-
 			errChan <- err
-			manager.StopConnection()
-			t.wg.Done()
-			return
-
+			break
 		}
-
 		select {
 
 		case <-errChan:
-			tcpConnection.Close()
-			manager.StopConnection()
-			t.wg.Done()
-			return
+			break
 		case <-t.in: //just unchoke all peers
 			t.out <- true
 		default:
 		}
 	}
+	manager.StopConnection()
+	tcpConnection.Close()
+	t.wg.Done()
 
 }
-
 func (t *PeerContactManager) GetProgress() (int, int, int) {
 	return t.pieceManager.GetProgress()
 }
 
 func (t *PeerContactManager) StopDownload() error {
 	// Stop go functions here ?
+
 	return t.pieceManager.SaveProgress()
 }
 
@@ -174,7 +169,6 @@ func (t *PeerContactManager) StopDownload() error {
 func (t *PeerContactManager) StartIncoming(port uint32) error {
 	// listen on all network interfaces on port input
 	ln, err := net.Listen("tcp", ":"+strconv.Itoa(int(port)))
-	fmt.Printf("%v\n", ln)
 	if err != nil {
 		return err
 	}
@@ -182,16 +176,20 @@ func (t *PeerContactManager) StartIncoming(port uint32) error {
 
 	for {
 		conn, err := ln.Accept()
+
 		if err != nil {
 			return err
 		}
 
 		go t.incomingHandler(conn)
+
 	}
+
 	return nil
 }
 
 func (t *PeerContactManager) incomingHandler(conn net.Conn) {
 	fmt.Println(conn.LocalAddr().String(), " Got connection from ", conn.RemoteAddr().String())
 	t.handler(conn, Peer{})
+
 }
