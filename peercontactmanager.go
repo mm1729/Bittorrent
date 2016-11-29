@@ -87,7 +87,6 @@ func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 		conn, err := net.Dial("tcp", peerEntry.IP+":"+strconv.FormatInt(peerEntry.Port, 10))
 
 		if err != nil {
-			fmt.Println("ERROR")
 			return err
 		}
 		//spawn routine to handle connection
@@ -110,7 +109,7 @@ func (t *PeerContactManager) handler(tcpConnection net.Conn, peer Peer) {
 	//start up the connection
 	if err := manager.StartConnection(tcpConnection, peer, t.tInfo, 120, 2); err != nil {
 
-		fmt.Println("Failed to connect to %v: %v\n", tcpConnection.RemoteAddr(), err)
+		//fmt.Printf("Failed to connect to %v: %v\n", tcpConnection.RemoteAddr(), err)
 		tcpConnection.Close()
 		t.wg.Done()
 		return

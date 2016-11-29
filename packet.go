@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
+	//	"fmt"
 	"net"
 	"strings"
 	"time"
@@ -177,7 +177,7 @@ func parseHandshakePacket(hsk []byte, peer Peer, info TorrentInfo) error {
 * returns: bytes from pakcet read in, error
  */
 func readPacket(length int, pRead *bufio.Reader) ([]byte, error) {
-	fmt.Printf("WTF %v %v\n", length, length)
+
 	data := make([]byte, length, length)
 	readData := make([]byte, length, length)
 	totalRead := 0

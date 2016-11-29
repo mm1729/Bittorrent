@@ -73,7 +73,7 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 		p.bitField[i] = 255
 
 	}*/
-	//p.bitField[63] = 0
+
 	//pieces which peers have claimed responsbility
 	p.transitField = make([]byte, int(numBytes), int(numBytes))
 
@@ -84,6 +84,7 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 	p.mutex = &sync.Mutex{}
 
 	p.managerMutex = &sync.Mutex{}
+	fmt.Printf("%v\n", p.bitField)
 
 	return p
 }
@@ -95,7 +96,7 @@ func (t *PieceManager) LoadBitFieldFromFile(size int) []byte {
 	if err != nil && err != io.EOF {
 		return make([]byte, size, size)
 	}
-	fmt.Printf("%v\n", data)
+	//	fmt.Printf("%v\n", data)
 	return data
 }
 
