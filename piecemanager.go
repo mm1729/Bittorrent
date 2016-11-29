@@ -73,7 +73,7 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 		p.bitField[i] = 255
 
 	}*/
-
+	p.bitField[63] = 0x03
 	//pieces which peers have claimed responsbility
 	p.transitField = make([]byte, int(numBytes), int(numBytes))
 
@@ -230,7 +230,7 @@ func (t *PieceManager) GetBitField() []byte {
 * @pieceIndex: index of piece to look for
 * returns: whether we have it
  */
-func (t *PieceManager) GetPiece(pieceIndex int32) (error, []byte) {
+func (t *PieceManager) GetPiece(pieceIndex int32, pieceLength int32, pieceBegin int32) (error, []byte) {
 	//implement
 	index := pieceIndex / 8
 	offset := uint32(pieceIndex % 8)
@@ -239,7 +239,17 @@ func (t *PieceManager) GetPiece(pieceIndex int32) (error, []byte) {
 		return errors.New("Piece does not exist"), nil
 	}
 	//we have it, so fetch the piece
-	return t.fileWriter.Read(pieceIndex)
+	err, arr := t.fileWriter.Read(pieceIndex)
+	if err != nil {
+		return err, nil
+	}
+
+	if pieceBegin+pieceLength > int32(len(arr)) {
+		return errors.New("PieceLength is bigger than requested piece or part of piece"), nil
+	}
+
+	return err, arr[pieceBegin : pieceBegin+pieceLength]
+
 }
 
 /*

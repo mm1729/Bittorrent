@@ -204,6 +204,7 @@ func (t *ConnectionManager) receiveBitFieldMessage() error {
 		return err
 	}
 	fmt.Printf("PEER FIELD %v\n", inMessage.Payload.bitField)
+	fmt.Println(len(inMessage.Payload.bitField))
 	t.descriptor = t.pieceManager.RegisterConnection(inMessage.Payload.bitField)
 	//fmt.Println(inMessage.Payload.bitField)
 
@@ -324,7 +325,7 @@ func (t *ConnectionManager) ReceiveNextMessage() error {
 			return errors.New("Peer is choked. Cannot cater requests from it")
 		}
 		fmt.Printf("%v\n", inMessage.Payload.pieceIndex)
-		if err, data := t.pieceManager.GetPiece(inMessage.Payload.pieceIndex); err == nil {
+		if err, data := t.pieceManager.GetPiece(inMessage.Payload.pieceIndex, inMessage.Payload.length, inMessage.Payload.begin); err == nil {
 
 			//return piece response
 			payload := Payload{inMessage.Payload.pieceIndex, []byte{}, 0, int32(len(data)), data}

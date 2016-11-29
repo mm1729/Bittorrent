@@ -20,6 +20,7 @@ const (
 )
 
 var manager PeerContactManager
+var killCh chan bool = make(chan bool) // used to signal kill tracker connection
 
 func sigHandler(ch chan os.Signal, tkInfo TrackerInfo) {
 	<-ch
@@ -27,9 +28,56 @@ func sigHandler(ch chan os.Signal, tkInfo TrackerInfo) {
 	if err := manager.StopDownload(); err != nil {
 		fmt.Println(err)
 	}
-	tkInfo.Disconnect()
+	killCh <- true // stop tracker connection
+	<-killCh       // wait to stop tracker connection
 	os.Exit(0)
 
+}
+
+func trackerUpdater(killCh chan bool, tkInfo TrackerInfo, interval int64, iDict InfoDict) {
+	// keep announcing to tracker at Interval seconds
+	ticker := time.NewTicker(time.Second * time.Duration(interval))
+	sentCompleted := false
+	go func() {
+		fmt.Println("updating...")
+		for _ = range ticker.C {
+			tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left =
+				manager.GetProgress()
+			tkInfo.sendGetRequest("")
+			if sentCompleted { // finished download
+				return
+			}
+		}
+	}()
+
+	for {
+		toKill := <-killCh
+		fmt.Println("Tokill: ", toKill, " sentCompleted : ", sentCompleted)
+
+		if sentCompleted == false { // just send completed
+			ticker.Stop() // ticker is done
+			// Send event stopped message to tracker
+			tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left = manager.GetProgress()
+			// we calculated tkInfo.Downloaded without accounting for the actual length of
+			// the last piece. So, if the total downloaded is some bytes < piece length
+			// just say it downloaded the whole thing.
+			if tkInfo.Downloaded-iDict.Length < iDict.PieceLength {
+				tkInfo.Downloaded = iDict.Length
+				tkInfo.Left = 0
+			}
+
+			if tkInfo.Left == 0 { // send completed message if the download is complete
+				tkInfo.sendGetRequest("completed")
+			}
+			sentCompleted = true
+		}
+
+		if toKill == true { // we are done - return
+			tkInfo.Disconnect()
+			killCh <- true // finished disconnect
+			return
+		}
+	}
 }
 
 func main() {
@@ -53,6 +101,7 @@ func main() {
 	// Tracker connection
 	tkInfo := NewTracker(hash, torrent, &iDict, ListenPort)
 	peerList, interval := tkInfo.Connect()
+	fmt.Println(iDict.Length, iDict.PieceLength)
 	/*interval := 2
 	peerList := make([]Peer, 1, 1)
 	peerList[0].IP = "127.0.0.1"
@@ -72,23 +121,8 @@ func main() {
 	manager = NewPeerContactManager(&wg, tInfo, fileName, 10, 10, 10)
 
 	// keep announcing to tracker at Interval seconds
-	ticker := time.NewTicker(time.Second * time.Duration(interval))
-	//i := 0
-	//j := 10
-	//fmt.Println("[", strings.Repeat("#", i), strings.Repeat("-", j), "]")
-	go func() {
-		for _ = range ticker.C {
-			//	fmt.Println("HERE")
-			//	j--
-			//	i++
-			tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left =
-				manager.GetProgress()
-			tkInfo.sendGetRequest("")
-			//	fmt.Println("\r[", strings.Repeat("#", i), strings.Repeat("-", j), "]")
-		}
-	}()
+	go trackerUpdater(killCh, tkInfo, interval, iDict)
 
-	// Listen for SIGINT to save bitfield to metafile
 	sigChannel := make(chan os.Signal, 1)
 	signal.Notify(sigChannel, os.Interrupt)
 	go func() {
@@ -104,37 +138,14 @@ func main() {
 		}
 	}()
 
-	//	tkInfo.sendGetRequest("")
 	if err := manager.StartOutgoing(peerList); err != nil {
-		fmt.Println("ERROR!\n")
+		fmt.Println(err)
 		return
 	}
 
-	ticker.Stop() // ticker is done
-	// Send event stopped message to tracker
-	tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left = manager.GetProgress()
-	fmt.Println(tkInfo.Uploaded, " ", tkInfo.Downloaded, " ", tkInfo.Left)
-
-	// we calculated tkInfo.Downloaded without accounting for the actual length of
-	// the last piece. So, if the total downloaded is some bytes < piece length
-	// just say it downloaded the whole thing.
-	if tkInfo.Downloaded-iDict.Length < iDict.PieceLength {
-		tkInfo.Downloaded = iDict.Length
-		tkInfo.Left = 0
-	}
-
-	if tkInfo.Left == 0 { // send completed message if the download is complete
-		tkInfo.sendGetRequest("completed")
-	}
+	killCh <- false // don't kill tracker connection but say we completed it
 	fmt.Println("Download completed. Waiting for user input...")
 	for {
 
 	}
-	/*
-
-		tkInfo.Disconnect()
-
-		if err := manager.StopDownload(); err != nil {
-			fmt.Println(err)
-		}*/
 }
