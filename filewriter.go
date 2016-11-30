@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -23,28 +24,58 @@ const (
 
 //FileWriter is the struct containing information writing to a file
 type FileWriter struct {
-	Info     *InfoDict
-	DataFile *os.File
-	Status   status
+	Info         *InfoDict
+	DataFile     *os.File
+	Status       status
+	MetaDataFile *os.File
 }
 
 //NewFileWriter Create initializes a new File Writer write to a particular file based on info
 //in the Info dictionary
-func NewFileWriter(tInfo *InfoDict, fileName string) FileWriter {
+func NewFileWriter(tInfo *InfoDict, fileName string, metaFileLength int64) FileWriter {
 	var f FileWriter
 	f.Info = tInfo
 
-	file, err := os.Create(fileName)
-	if err != nil {
-		log.Fatal("Error creating file to write pieces\n", err)
-	}
-	if err := file.Truncate(int64(tInfo.Length)); err != nil {
-		log.Fatal("Unable to create a file with enough space for torrent\n", err)
+	dirName := strings.Split(fileName, ".")[0]
+	if _, err := os.Stat(dirName); err != nil {
+		if os.IsNotExist(err) { // directory does not exist create it
+			if err := os.Mkdir(dirName, 0755); err != nil {
+				log.Fatal("Unable to open/create download directory\n", err)
+			}
+
+		}
+
 	}
 
-	f.DataFile = file // f is now the file where data is to be written
+	f.DataFile = f.OpenFile(filepath.Join(dirName, fileName), int64(tInfo.Length))
+	f.MetaDataFile = f.OpenFile(filepath.Join(dirName, "."+fileName+".meta"), metaFileLength)
+
 	f.Status = CREATED
 	return f
+}
+
+func (f *FileWriter) OpenFile(path string, size int64) *os.File {
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) { // file does not exist create it
+			file, err := os.Create(path)
+			if err != nil {
+				log.Fatal("Error creating file to write pieces\n", err)
+			}
+			if err := file.Truncate(size); err != nil {
+				log.Fatal("Unable to create a file with enough space for torrent\n", err)
+			}
+			return file
+
+		}
+		log.Fatal(err)
+	}
+	// file exists just open it
+	fmt.Println(path)
+	file, err := os.OpenFile(path, os.O_RDWR, 0666)
+	if err != nil {
+		log.Fatal("Error opening existing file in FileWriter\n", err)
+	}
+	return file
 }
 
 //Write writes to the file specified in the FileWriter created before
@@ -58,13 +89,22 @@ func (f *FileWriter) Write(data []byte, index int) error {
 	}
 
 	//check the sha1 hash
-	//if f.checkSHA1(data, index) == false {
-	//	return errors.New("Data SHA1 does not match piece SHA1\n")
-	//}
+	if f.checkSHA1(data, index) == false {
+		//	fmt.Println("NOMATCH")
+		return errors.New("Data SHA1 does not match piece SHA1\n")
+	} else {
+		//	fmt.Println("MATCHED")
+	}
 
 	_, err := f.DataFile.WriteAt(data, int64(index*f.Info.PieceLength))
-	fmt.Println(err)
+	//	fmt.Println(err)
 	return err
+}
+
+func (f *FileWriter) Read(index int32) (error, []byte) {
+	data := make([]byte, f.Info.PieceLength, f.Info.PieceLength)
+	_, err := f.DataFile.ReadAt(data, int64(index*int32(f.Info.PieceLength)))
+	return err, data
 }
 
 func (f *FileWriter) checkSHA1(data []byte, index int) bool {
@@ -72,9 +112,7 @@ func (f *FileWriter) checkSHA1(data []byte, index int) bool {
 	hash := sha1.New()
 	io.WriteString(hash, string(data))
 	dataHash := string(hash.Sum(nil))
-	pieceHash := f.Info.Pieces[index*20 : (index+1)*20+1]
-	fmt.Printf("%0.2x\n", dataHash)
-	fmt.Printf("%0.2x\n", pieceHash)
+	pieceHash := f.Info.Pieces[index*20 : (index+1)*20]
 	return strings.Compare(dataHash, pieceHash) == 0
 }
 
@@ -127,4 +165,17 @@ func (f *FileWriter) Restart() bool {
 		return true
 	}
 	return false
+}
+
+// Write meta data to meta file
+func (f *FileWriter) WriteMetaData(data []byte) error {
+	_, err := f.MetaDataFile.WriteAt(data, 0)
+	return err
+}
+
+func (f *FileWriter) GetMetaData(size int) ([]byte, error) {
+	data := make([]byte, size, size)
+	_, err := f.MetaDataFile.ReadAt(data, 0)
+	//fmt.Println(data)
+	return data, err
 }

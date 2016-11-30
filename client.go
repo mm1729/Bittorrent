@@ -4,17 +4,84 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"runtime"
+	//	"strings"
+	"sync"
 	"time"
 )
 
 //ClientID is the 20 byte id of our client
-var ClientID = "DONDESTALABIBLIOTECA"
-
 //ProtoName is the BitTorrent protocol we are using
-var ProtoName = "BitTorrent protocol"
+const (
+	ListenPort = 6881
+	ProtoName  = "BitTorrent protocol"
+	ClientID   = "DONDESTALABIBLIOTECA"
+)
+
+var manager PeerContactManager
+var killCh chan bool = make(chan bool) // used to signal kill tracker connection
+
+func sigHandler(ch chan os.Signal, tkInfo TrackerInfo) {
+	<-ch
+	fmt.Println("Exiting...")
+	if err := manager.StopDownload(); err != nil {
+		fmt.Println(err)
+	}
+	killCh <- true // stop tracker connection
+	<-killCh       // wait to stop tracker connection
+	os.Exit(0)
+
+}
+
+func trackerUpdater(killCh chan bool, tkInfo TrackerInfo, interval int64, iDict InfoDict) {
+	// keep announcing to tracker at Interval seconds
+	ticker := time.NewTicker(time.Second * time.Duration(interval))
+	sentCompleted := false
+	go func() {
+		fmt.Println("updating...")
+		for _ = range ticker.C {
+			tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left =
+				manager.GetProgress()
+			tkInfo.sendGetRequest("")
+			if sentCompleted { // finished download
+				return
+			}
+		}
+	}()
+
+	for {
+		toKill := <-killCh
+		fmt.Println("Tokill: ", toKill, " sentCompleted : ", sentCompleted)
+
+		if sentCompleted == false { // just send completed
+			ticker.Stop() // ticker is done
+			// Send event stopped message to tracker
+			tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left = manager.GetProgress()
+			// we calculated tkInfo.Downloaded without accounting for the actual length of
+			// the last piece. So, if the total downloaded is some bytes < piece length
+			// just say it downloaded the whole thing.
+			if tkInfo.Downloaded-iDict.Length < iDict.PieceLength {
+				tkInfo.Downloaded = iDict.Length
+				tkInfo.Left = 0
+			}
+
+			if tkInfo.Left == 0 { // send completed message if the download is complete
+				tkInfo.sendGetRequest("completed")
+			}
+			sentCompleted = true
+		}
+
+		if toKill == true { // we are done - return
+			tkInfo.Disconnect()
+			killCh <- true // finished disconnect
+			return
+		}
+	}
+}
 
 func main() {
-
+	runtime.GOMAXPROCS(2)
 	if len(os.Args) < 3 {
 		fmt.Println("Illegal USAGE!\n USAGE : ./Bittorrent <torrent_file> <output file>")
 		return
@@ -32,9 +99,15 @@ func main() {
 	iDict := torrent.InfoDict()
 
 	// Tracker connection
-	tkInfo := NewTracker(hash, torrent, &iDict)
+	tkInfo := NewTracker(hash, torrent, &iDict, ListenPort)
 	peerList, interval := tkInfo.Connect()
-	fmt.Printf("%v\n", peerList)
+	fmt.Println(iDict.Length, iDict.PieceLength)
+	/*interval := 2
+	peerList := make([]Peer, 1, 1)
+	peerList[0].IP = "127.0.0.1"
+	peerList[0].PeerID = "DONDESTALABIBLIOTECA"
+	peerList[0].Port = 6881*/
+	//fmt.Printf("%v\n", peerList)
 
 	//Start peer download
 	tInfo := TorrentInfo{
@@ -44,36 +117,35 @@ func main() {
 		ProtoNameLen: len(ProtoName),
 		InfoHash:     string(hash[:len(hash)]),
 	}
-
-	PeerDownloader := NewPeerDownloader(tInfo, peerList, fileName)
+	var wg sync.WaitGroup
+	manager = NewPeerContactManager(&wg, tInfo, fileName, 10, 10, 10)
 
 	// keep announcing to tracker at Interval seconds
-	ticker := time.NewTicker(time.Second * time.Duration(interval))
-	fmt.Println("Sending updates to tracker at ", interval, "s")
+	go trackerUpdater(killCh, tkInfo, interval, iDict)
 
+	sigChannel := make(chan os.Signal, 1)
+	signal.Notify(sigChannel, os.Interrupt)
 	go func() {
-		for _ = range ticker.C {
-			tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left =
-				PeerDownloader.getProgress()
-			tkInfo.sendGetRequest("")
+		sigHandler(sigChannel, tkInfo)
+	}()
+
+	// start listening for requests
+	go func() {
+		if err := manager.StartIncoming(ListenPort); err != nil {
+			fmt.Println("Listen Error\n")
+			fmt.Println(err)
+			return
 		}
 	}()
-	PeerDownloader.StartDownload()
-	ticker.Stop() // ticker is done
-	// Send event stopped message to tracker
-	tkInfo.Uploaded, tkInfo.Downloaded, tkInfo.Left = PeerDownloader.getProgress()
-	fmt.Println(tkInfo.Uploaded, " ", tkInfo.Downloaded, " ", tkInfo.Left)
 
-	// we calculated tkInfo.Downloaded without accounting for the actual length of
-	// the last piece. So, if the total downloaded is some bytes < piece length
-	// just say it downloaded the whole thing.
-	if tkInfo.Downloaded-iDict.Length < iDict.PieceLength {
-		tkInfo.Downloaded = iDict.Length
-		tkInfo.Left = 0
+	if err := manager.StartOutgoing(peerList); err != nil {
+		fmt.Println(err)
+		return
 	}
 
-	if tkInfo.Left == 0 { // send completed message if the download is complete
-		tkInfo.sendGetRequest("completed")
+	killCh <- false // don't kill tracker connection but say we completed it
+	fmt.Println("Download completed. Waiting for user input...")
+	for {
+
 	}
-	tkInfo.Disconnect()
 }
