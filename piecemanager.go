@@ -73,7 +73,7 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 		p.bitField[i] = 255
 
 	}*/
-	//p.bitField[63] = 0x03
+	p.bitField[63] |= 2
 	//pieces which peers have claimed responsbility
 	p.transitField = make([]byte, int(numBytes), int(numBytes))
 
