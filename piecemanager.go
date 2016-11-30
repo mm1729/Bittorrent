@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"time"
 	//"os"
 	"io"
 )
@@ -44,6 +45,8 @@ type PieceManager struct {
 
 	mutex        *sync.Mutex
 	managerMutex *sync.Mutex
+
+	downloadStatus chan<- byte
 }
 
 /*
@@ -86,7 +89,34 @@ func NewPieceManager(tInfo *InfoDict, requestQueueSize int, fileName string) Pie
 	p.managerMutex = &sync.Mutex{}
 	fmt.Printf("%v\n", p.bitField)
 
+	p.downloadStatus = make(chan<- byte, int32(numPieces))
+	//p.downloadStatus <- byte(1)
+	for _, entry := range p.bitField {
+		for _, offset := range []uint{0, 1, 2, 3, 4, 5, 6, 7} {
+			if entry&(1<<(7-offset)) != 0 {
+				p.downloadStatus <- byte(1)
+			}
+		}
+	}
+	//fmt.Printf("Len: %v\n", len(p.downloadStatus))
 	return p
+}
+
+//returns a channel to get notified of download completion
+func (t *PieceManager) WaitForDownload() <-chan bool {
+
+	done := make(chan bool)
+	go func(done chan<- bool, status chan<- byte) {
+		for len(status) != cap(status) {
+			time.Sleep(1 * time.Second)
+			fmt.Printf("Downloaded %2.0f%%", (float32(len(status))/float32(cap(status)))*100)
+		}
+		done <- true
+		return
+
+	}(done, t.downloadStatus)
+	return done
+
 }
 
 // Returns the bitfield from the metadata file
@@ -270,9 +300,11 @@ func (t *PieceManager) ReceivePiece(connection int, pieceIndex int32, piece []by
 		err := t.fileWriter.Write(piece, int(pieceIndex))
 
 		if err != nil {
+
 			t.mutex.Lock()
 			t.bitField[index] &= ^bit
 			t.mutex.Unlock()
+
 			//	fmt.Printf("%v\n", err)
 
 		} else {
@@ -280,6 +312,7 @@ func (t *PieceManager) ReceivePiece(connection int, pieceIndex int32, piece []by
 			//we now have  the piece
 			t.bitField[index] |= bit
 			t.mutex.Unlock()
+			t.downloadStatus <- byte(1)
 		}
 		return err
 

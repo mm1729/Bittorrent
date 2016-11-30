@@ -52,7 +52,7 @@ func trackerUpdater(killCh chan bool, tkInfo TrackerInfo, interval int64, iDict 
 
 	for {
 		toKill := <-killCh
-		fmt.Println("Tokill: ", toKill, " sentCompleted : ", sentCompleted)
+		//	fmt.Println("Tokill: ", toKill, " sentCompleted : ", sentCompleted)
 
 		if sentCompleted == false { // just send completed
 			ticker.Stop() // ticker is done
@@ -118,7 +118,7 @@ func main() {
 		InfoHash:     string(hash[:len(hash)]),
 	}
 	var wg sync.WaitGroup
-	manager = NewPeerContactManager(&wg, tInfo, fileName, 10, 10, 10)
+	manager = NewPeerContactManager(&tkInfo, &wg, tInfo, fileName, 10, 10, 10)
 
 	// keep announcing to tracker at Interval seconds
 	go trackerUpdater(killCh, tkInfo, interval, iDict)

@@ -44,6 +44,8 @@ type PeerContactManager struct {
 	outGoingChanListLock *sync.Mutex
 	outGoing             []chan bool
 	inComing             []chan bool
+
+	tracker *TrackerInfo
 }
 
 /*
@@ -54,7 +56,7 @@ NewPeerDownloader create a new peerdownloader
 * @maxUnchoked: maximum number of peers we can unchoke at once
 * returns: new PeerDownloader
 */
-func NewPeerContactManager(wg *sync.WaitGroup, tInfo TorrentInfo, fileName string, maxConnections uint32, maxUnchoked uint32, maxMsgQueue int) PeerContactManager {
+func NewPeerContactManager(tracker *TrackerInfo, wg *sync.WaitGroup, tInfo TorrentInfo, fileName string, maxConnections uint32, maxUnchoked uint32, maxMsgQueue int) PeerContactManager {
 	var p PeerContactManager
 	p.wg = wg
 	p.tInfo = tInfo
@@ -68,7 +70,21 @@ func NewPeerContactManager(wg *sync.WaitGroup, tInfo TorrentInfo, fileName strin
 	p.in = make(chan bool)  //receive requests for unchoking
 	p.out = make(chan bool) //respond to requests for unchoking
 	p.msgQueueMax = maxMsgQueue
+	p.tracker = tracker
+	go func(tracker *TrackerInfo) {
+		status := p.pieceManager.WaitForDownload()
+		for {
+			select {
+			case <-status:
+				tracker.sendGetRequest("completed")
+				fmt.Println("Download complete")
+				return
 
+			}
+
+		}
+
+	}(p.tracker)
 	return p
 }
 
