@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"sync"
 	//"strings"
-	//	"time"
+	"time"
 )
 
 //TorrentInfo used to consolidate space, not the same as InfoDict
@@ -46,7 +46,8 @@ type PeerContactManager struct {
 	outGoing             []chan bool
 	inComing             []chan bool
 
-	tracker *TrackerInfo
+	tracker        *TrackerInfo
+	waitToDownload chan bool
 }
 
 /*
@@ -72,11 +73,15 @@ func NewPeerContactManager(tracker *TrackerInfo, wg *sync.WaitGroup, tInfo Torre
 	p.out = make(chan bool) //respond to requests for unchoking
 	p.msgQueueMax = maxMsgQueue
 	p.tracker = tracker
+	p.waitToDownload = make(chan bool)
 	go func(tracker *TrackerInfo) {
 		status := p.pieceManager.WaitForDownload()
+		<-p.waitToDownload
+		now := time.Now()
 		for {
 			select {
 			case <-status:
+				fmt.Println("Time for Download: ", time.Since(now))
 				tracker.Uploaded, tracker.Downloaded, tracker.Left = p.GetProgress()
 				if math.Abs(float64(tracker.Left)) < float64(p.tInfo.TInfo.PieceLength) {
 					tracker.Left = 0
@@ -101,12 +106,15 @@ func NewPeerContactManager(tracker *TrackerInfo, wg *sync.WaitGroup, tInfo Torre
  */
 func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 	//handle the peer connection
-
+	writeToChan := true
 	for _, peerEntry := range peers {
 		// 1.) make TCP connection
 
 		conn, err := net.Dial("tcp", peerEntry.IP+":"+strconv.FormatInt(peerEntry.Port, 10))
-
+		if writeToChan == true {
+			t.waitToDownload <- true
+			writeToChan = false
+		}
 		if err != nil {
 			return err
 		}
