@@ -12,6 +12,7 @@ import (
 	//"errors"
 	"fmt"
 	//	"log"
+	"math"
 	"net"
 	"strconv"
 	"sync"
@@ -76,6 +77,10 @@ func NewPeerContactManager(tracker *TrackerInfo, wg *sync.WaitGroup, tInfo Torre
 		for {
 			select {
 			case <-status:
+				tracker.Uploaded, tracker.Downloaded, tracker.Left = p.GetProgress()
+				if math.Abs(float64(tracker.Left)) < float64(p.tInfo.TInfo.PieceLength) {
+					tracker.Left = 0
+				}
 				tracker.sendGetRequest("completed")
 				fmt.Println("Download complete")
 				return

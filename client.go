@@ -67,7 +67,7 @@ func trackerUpdater(killCh chan bool, tkInfo TrackerInfo, interval int64, iDict 
 			}
 
 			if tkInfo.Left == 0 { // send completed message if the download is complete
-				tkInfo.sendGetRequest("completed")
+				//	tkInfo.sendGetRequest("completed")
 			}
 			sentCompleted = true
 		}
