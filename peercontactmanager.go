@@ -12,11 +12,12 @@ import (
 	//"errors"
 	"fmt"
 	//	"log"
+	"math"
 	"net"
 	"strconv"
 	"sync"
 	//"strings"
-	//	"time"
+	"time"
 )
 
 //TorrentInfo used to consolidate space, not the same as InfoDict
@@ -44,6 +45,9 @@ type PeerContactManager struct {
 	outGoingChanListLock *sync.Mutex
 	outGoing             []chan bool
 	inComing             []chan bool
+
+	tracker        *TrackerInfo
+	waitToDownload chan bool
 }
 
 /*
@@ -54,7 +58,7 @@ NewPeerDownloader create a new peerdownloader
 * @maxUnchoked: maximum number of peers we can unchoke at once
 * returns: new PeerDownloader
 */
-func NewPeerContactManager(wg *sync.WaitGroup, tInfo TorrentInfo, fileName string, maxConnections uint32, maxUnchoked uint32, maxMsgQueue int) PeerContactManager {
+func NewPeerContactManager(tracker *TrackerInfo, wg *sync.WaitGroup, tInfo TorrentInfo, fileName string, maxConnections uint32, maxUnchoked uint32, maxMsgQueue int) PeerContactManager {
 	var p PeerContactManager
 	p.wg = wg
 	p.tInfo = tInfo
@@ -68,7 +72,29 @@ func NewPeerContactManager(wg *sync.WaitGroup, tInfo TorrentInfo, fileName strin
 	p.in = make(chan bool)  //receive requests for unchoking
 	p.out = make(chan bool) //respond to requests for unchoking
 	p.msgQueueMax = maxMsgQueue
+	p.tracker = tracker
+	p.waitToDownload = make(chan bool)
+	go func(tracker *TrackerInfo) {
+		status := p.pieceManager.WaitForDownload()
+		<-p.waitToDownload
+		now := time.Now()
+		for {
+			select {
+			case <-status:
+				fmt.Println("Time for Download: ", time.Since(now))
+				tracker.Uploaded, tracker.Downloaded, tracker.Left = p.GetProgress()
+				if math.Abs(float64(tracker.Left)) < float64(p.tInfo.TInfo.PieceLength) {
+					tracker.Left = 0
+				}
+				tracker.sendGetRequest("completed")
+				fmt.Println("Download complete")
+				return
 
+			}
+
+		}
+
+	}(p.tracker)
 	return p
 }
 
@@ -80,12 +106,15 @@ func NewPeerContactManager(wg *sync.WaitGroup, tInfo TorrentInfo, fileName strin
  */
 func (t *PeerContactManager) StartOutgoing(peers []Peer) error {
 	//handle the peer connection
-
+	writeToChan := true
 	for _, peerEntry := range peers {
 		// 1.) make TCP connection
 
 		conn, err := net.Dial("tcp", peerEntry.IP+":"+strconv.FormatInt(peerEntry.Port, 10))
-
+		if writeToChan == true {
+			t.waitToDownload <- true
+			writeToChan = false
+		}
 		if err != nil {
 			return err
 		}
